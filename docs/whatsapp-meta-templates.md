@@ -69,6 +69,8 @@ For each template:
 
 **Purpose:** Mass outreach to candidates matching a role
 
+**Template Name:** `talent_outreach`
+
 **Body:**
 ```
 Hi {{1}},
@@ -99,10 +101,43 @@ If interested, please apply here: {{8}}
 | `{{8}}` | apply_link | text | https://gatihire.com/apply/abc123 |
 
 **Buttons:**
-- `[Interested]` (quick reply)
-- `[Not Interested]` (quick reply)
+- Custom: `[Interested]` (quick reply)
+- Custom: `[Not Interested]` (quick reply)
 
 **Tags:** `["ai_outreach", "job_recruitment"]`
+
+**Meta Template API Payload:**
+```json
+{
+  "name": "talent_outreach",
+  "category": "MARKETING",
+  "language": "en",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}},\n\nWe found a role that matches your profile:\n\nPosition: {{2}}\nCompany: {{3}}\nLocation: {{4}}\nSalary: {{5}}\n\nMatch Score: {{6}}/10\nKey Skills: {{7}}\n\nIf interested, please apply here: {{8}}",
+      "example": {
+        "body_text": [
+          ["Rahul Sharma", "AI Engineer", "TechCorp India", "Bangalore, India", "25-35 LPA", "8", "Python, LLMs, RAG", "https://gatihire.com/apply/abc123"]
+        ]
+      }
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "Interested"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Not Interested"
+        }
+      ]
+    }
+  ]
+}
+```
 
 ---
 
@@ -111,6 +146,8 @@ If interested, please apply here: {{8}}
 **Category:** UTILITY
 
 **Purpose:** Inbound candidate screening invite
+
+**Template Name:** `screening_invite`
 
 **Body:**
 ```
@@ -131,13 +168,58 @@ Please select a convenient time below, or reply with your preference.
 | `{{3}}` | company_name | text | StartupXYZ |
 
 **Buttons:**
-- `[Call Now]` (quick reply)
-- `[In 10 min]` (quick reply)
-- `[In 30 min]` (quick reply)
-- `[Today Evening]` (quick reply)
-- `[Custom Time]` (quick reply)
+- Custom: `[Call Now]` (quick reply)
+- Custom: `[In 10 min]` (quick reply)
+- Custom: `[In 30 min]` (quick reply)
+- Custom: `[Today Evening]` (quick reply)
+- Custom: `[Custom Time]` (quick reply)
 
 **Tags:** `["ai_screening", "inbound"]`
+
+**Meta Template API Payload:**
+```json
+{
+  "name": "screening_invite",
+  "category": "UTILITY",
+  "language": "en",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}},\n\nThank you for applying for {{2}} at {{3}}.\n\nOur AI assistant will conduct a brief screening call to discuss your experience and the role requirements. This typically takes 5-10 minutes.\n\nPlease select a convenient time below, or reply with your preference.",
+      "example": {
+        "body_text": [
+          ["Priya Patel", "Full Stack Developer", "StartupXYZ"]
+        ]
+      }
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "Call Now"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "In 10 min"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "In 30 min"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Today Evening"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Custom Time"
+        }
+      ]
+    }
+  ]
+}
+```
 
 ---
 
@@ -146,6 +228,8 @@ Please select a convenient time below, or reply with your preference.
 **Category:** UTILITY
 
 **Purpose:** After candidate says "Interested"
+
+**Template Name:** `schedule_options`
 
 **Body:**
 ```
@@ -163,12 +247,53 @@ Please select a convenient time below.
 | `{{2}}` | job_title | text | Backend Engineer |
 
 **Buttons:**
-- `[Call Now]` (quick reply)
-- `[In 10 min]` (quick reply)
-- `[In 30 min]` (quick reply)
-- `[Today Evening]` (quick reply)
+- Custom: `[Call Now]` (quick reply)
+- Custom: `[In 10 min]` (quick reply)
+- Custom: `[In 30 min]` (quick reply)
+- Custom: `[Today Evening]` (quick reply)
 
 **Tags:** `["ai_screening", "schedule"]`
+
+**Meta Template API Payload:**
+```json
+{
+  "name": "schedule_options",
+  "category": "UTILITY",
+  "language": "en",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Great, {{1}}!\n\nLet us schedule your screening call for the {{2}} position.\n\nPlease select a convenient time below.",
+      "example": {
+        "body_text": [
+          ["Amit Kumar", "Backend Engineer"]
+        ]
+      }
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "Call Now"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "In 10 min"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "In 30 min"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Today Evening"
+        }
+      ]
+    }
+  ]
+}
+```
 
 ---
 
@@ -177,6 +302,8 @@ Please select a convenient time below.
 **Category:** UTILITY
 
 **Purpose:** Pre-call notification (informational)
+
+**Template Name:** `call_nudge`
 
 **Body:**
 ```
@@ -198,6 +325,26 @@ The call will last approximately 5-10 minutes. Please answer when we call.
 
 **Tags:** `["ai_call", "nudge"]`
 
+**Meta Template API Payload:**
+```json
+{
+  "name": "call_nudge",
+  "category": "UTILITY",
+  "language": "en",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}},\n\nThis is a reminder that our AI assistant will call you shortly for your screening regarding the {{2}} position at {{3}}.\n\nThe call will last approximately 5-10 minutes. Please answer when we call.",
+      "example": {
+        "body_text": [
+          ["Sneha Gupta", "Data Scientist", "DataCo"]
+        ]
+      }
+    }
+  ]
+}
+```
+
 ---
 
 ### 5. Tried Calling (`tried_calling`)
@@ -205,6 +352,8 @@ The call will last approximately 5-10 minutes. Please answer when we call.
 **Category:** UTILITY
 
 **Purpose:** After call fails — retry notification
+
+**Template Name:** `tried_calling`
 
 **Body:**
 ```
@@ -223,11 +372,48 @@ Please select a convenient time for us to try again, or reply with your preferre
 | `{{3}}` | company_name | text | CloudFirst |
 
 **Buttons:**
-- `[Call Now]` (quick reply)
-- `[In 10 min]` (quick reply)
-- `[In 1 hour]` (quick reply)
+- Custom: `[Call Now]` (quick reply)
+- Custom: `[In 10 min]` (quick reply)
+- Custom: `[In 1 hour]` (quick reply)
 
 **Tags:** `["ai_call", "retry"]`
+
+**Meta Template API Payload:**
+```json
+{
+  "name": "tried_calling",
+  "category": "UTILITY",
+  "language": "en",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}},\n\nWe attempted to call you regarding the {{2}} position at {{3}}, but were unable to connect.\n\nPlease select a convenient time for us to try again, or reply with your preferred time.",
+      "example": {
+        "body_text": [
+          ["Vikram Singh", "DevOps Engineer", "CloudFirst"]
+        ]
+      }
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "Call Now"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "In 10 min"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "In 1 hour"
+        }
+      ]
+    }
+  ]
+}
+```
 
 ---
 
@@ -236,6 +422,8 @@ Please select a convenient time for us to try again, or reply with your preferre
 **Category:** UTILITY
 
 **Purpose:** After Bolna call fails — reschedule options
+
+**Template Name:** `missed_call_reschedule`
 
 **Body:**
 ```
@@ -254,12 +442,53 @@ Please select a convenient time to reschedule, or reply with your preferred time
 | `{{3}}` | company_name | text | InnovateInc |
 
 **Buttons:**
-- `[Call Now]` (quick reply)
-- `[In 10 min]` (quick reply)
-- `[In 1 hour]` (quick reply)
-- `[Tomorrow Morning]` (quick reply)
+- Custom: `[Call Now]` (quick reply)
+- Custom: `[In 10 min]` (quick reply)
+- Custom: `[In 1 hour]` (quick reply)
+- Custom: `[Tomorrow Morning]` (quick reply)
 
 **Tags:** `["ai_call", "reschedule"]`
+
+**Meta Template API Payload:**
+```json
+{
+  "name": "missed_call_reschedule",
+  "category": "UTILITY",
+  "language": "en",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}},\n\nWe missed you for the {{2}} screening at {{3}}.\n\nPlease select a convenient time to reschedule, or reply with your preferred time.",
+      "example": {
+        "body_text": [
+          ["Neha Reddy", "Product Manager", "InnovateInc"]
+        ]
+      }
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "Call Now"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "In 10 min"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "In 1 hour"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Tomorrow Morning"
+        }
+      ]
+    }
+  ]
+}
+```
 
 ---
 
@@ -268,6 +497,8 @@ Please select a convenient time to reschedule, or reply with your preferred time
 **Category:** UTILITY
 
 **Purpose:** 4 hours silence after outreach — gentle reminder
+
+**Template Name:** `reminder_nudge`
 
 **Body:**
 ```
@@ -287,10 +518,43 @@ If you are interested, please reply here or select an option below.
 | `{{4}}` | location | text | Mumbai, India |
 
 **Buttons:**
-- `[Interested]` (quick reply)
-- `[Not Interested]` (quick reply)
+- Custom: `[Interested]` (quick reply)
+- Custom: `[Not Interested]` (quick reply)
 
 **Tags:** `["ai_outreach", "reminder"]`
+
+**Meta Template API Payload:**
+```json
+{
+  "name": "reminder_nudge",
+  "category": "UTILITY",
+  "language": "en",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}},\n\nFollowing up regarding the {{2}} position at {{3}} in {{4}}.\n\nIf you are interested, please reply here or select an option below.",
+      "example": {
+        "body_text": [
+          ["Rohan Mehta", "Frontend Developer", "WebSolutions", "Mumbai, India"]
+        ]
+      }
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "Interested"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Not Interested"
+        }
+      ]
+    }
+  ]
+}
+```
 
 ---
 
@@ -299,6 +563,8 @@ If you are interested, please reply here or select an option below.
 **Category:** UTILITY
 
 **Purpose:** Inbound candidate from board-app (professional tone)
+
+**Template Name:** `inbound_screening_invite`
 
 **Body:**
 ```
@@ -319,13 +585,58 @@ Please select a convenient time below, or reply with your preference.
 | `{{3}}` | company_name | text | AI Labs |
 
 **Buttons:**
-- `[Call Now]` (quick reply)
-- `[In 10 min]` (quick reply)
-- `[In 30 min]` (quick reply)
-- `[Today Evening]` (quick reply)
-- `[Custom Time]` (quick reply)
+- Custom: `[Call Now]` (quick reply)
+- Custom: `[In 10 min]` (quick reply)
+- Custom: `[In 30 min]` (quick reply)
+- Custom: `[Today Evening]` (quick reply)
+- Custom: `[Custom Time]` (quick reply)
 
 **Tags:** `["ai_screening", "inbound"]`
+
+**Meta Template API Payload:**
+```json
+{
+  "name": "inbound_screening_invite",
+  "category": "UTILITY",
+  "language": "en",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}},\n\nThank you for applying for {{2}} at {{3}}.\n\nOur AI assistant will conduct a brief screening call to assess your fit for this role. The call will last approximately 5-10 minutes.\n\nPlease select a convenient time below, or reply with your preference.",
+      "example": {
+        "body_text": [
+          ["Karan Joshi", "ML Engineer", "AI Labs"]
+        ]
+      }
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "Call Now"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "In 10 min"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "In 30 min"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Today Evening"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Custom Time"
+        }
+      ]
+    }
+  ]
+}
+```
 
 ---
 

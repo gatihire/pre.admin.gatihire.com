@@ -349,7 +349,19 @@ Note the ngrok URL (e.g., `https://abc123.ngrok.io`)
    - `messages`
    - `message_template_status_update`
 
-### Step 4: Test Webhook
+### Step 4: Configure API Endpoint
+
+The WhatsApp API endpoint is:
+```
+https://graph.facebook.com/{version}/{phone_number_id}/messages
+```
+
+Example:
+```
+https://graph.facebook.com/v21.0/1234567890/messages
+```
+
+### Step 5: Test Webhook
 
 1. In Meta App Dashboard → WhatsApp → Configuration
 2. Click **Test** next to Webhook
@@ -496,6 +508,42 @@ Vercel will automatically deploy.
 4. Verify message is sent
 5. Reply to the message
 6. Verify webhook processes the reply
+
+### API Endpoint Reference
+
+**Meta WhatsApp Cloud API:**
+```
+Base URL: https://graph.facebook.com/{version}
+Send Message: POST /{phone_number_id}/messages
+```
+
+**Example Request:**
+```bash
+curl -X POST "https://graph.facebook.com/v21.0/1234567890/messages" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messaging_product": "whatsapp",
+    "recipient_type": "individual",
+    "to": "919876543210",
+    "type": "template",
+    "template": {
+      "name": "talent_outreach",
+      "language": {
+        "code": "en"
+      },
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            { "type": "text", "text": "Rahul Sharma" },
+            { "type": "text", "text": "AI Engineer" }
+          ]
+        }
+      ]
+    }
+  }'
+```
 
 ---
 
