@@ -18,16 +18,41 @@
 
 ## Template Inventory
 
+### Outbound Flow Templates (HR reaches out to candidates)
+
 | # | Template Name | Category | When Sent | Parameters |
 |---|---|---|---|---|
-| 1 | `talent_outreach` | MARKETING | Outbound candidate matching role | candidate_name, job_title, company_name, location, salary, match_score, skills, apply_link |
-| 2 | `screening_invite` | UTILITY | Inbound candidate screening | candidate_name, job_title, company_name |
-| 3 | `schedule_options` | UTILITY | After candidate says "Interested" | candidate_name, job_title |
-| 4 | `call_nudge` | UTILITY | Pre-call notification | candidate_name, job_title, company_name |
-| 5 | `tried_calling` | UTILITY | After call fails — retry | candidate_name, job_title, company_name |
-| 6 | `missed_call_reschedule` | UTILITY | After Bolna call fails | candidate_name, job_title, company_name |
-| 7 | `reminder_nudge` | UTILITY | 4h silence after outreach | candidate_name, job_title, company_name, location |
-| 8 | `inbound_screening_invite` | UTILITY | Inbound from board-app | candidate_name, job_title, company_name |
+| 1 | `talent_outreach` | MARKETING | Initial outreach to matching candidates | candidate_name, job_title, company_name, location, salary, match_score, skills, apply_link |
+| 2 | `schedule_options` | UTILITY | After candidate says "Interested" | candidate_name, job_title |
+| 3 | `call_nudge` | UTILITY | Pre-call notification | candidate_name, job_title, company_name |
+| 4 | `tried_calling` | UTILITY | After call fails — retry | candidate_name, job_title, company_name |
+| 5 | `missed_call_reschedule` | UTILITY | After Bolna call fails | candidate_name, job_title, company_name |
+| 6 | `reminder_nudge` | UTILITY | 4h silence after outreach | candidate_name, job_title, company_name, location |
+
+### Inbound Flow Templates (Candidate applies via board-app)
+
+| # | Template Name | Category | When Sent | Parameters |
+|---|---|---|---|---|
+| 1 | `inbound_screening_invite` | UTILITY | Initial screening invite for inbound candidates | candidate_name, job_title, company_name |
+| 2 | `schedule_options` | UTILITY | After candidate picks time | candidate_name, job_title |
+| 3 | `call_nudge` | UTILITY | Pre-call notification | candidate_name, job_title, company_name |
+| 4 | `tried_calling` | UTILITY | After call fails — retry | candidate_name, job_title, company_name |
+| 5 | `missed_call_reschedule` | UTILITY | After Bolna call fails | candidate_name, job_title, company_name |
+| 6 | `reminder_nudge` | UTILITY | 4h silence after outreach | candidate_name, job_title, company_name, location |
+
+### Template Usage Summary
+
+| Flow | Initial Template | Category | Purpose |
+|------|------------------|----------|---------|
+| **Outbound** | `talent_outreach` | MARKETING | HR reaches out to candidates matching a role |
+| **Inbound** | `inbound_screening_invite` | UTILITY | Candidate applied via board-app, needs screening |
+
+**Shared Templates (both flows):**
+- `schedule_options` - After candidate says "Interested"
+- `call_nudge` - Pre-call notification
+- `tried_calling` - After call fails
+- `missed_call_reschedule` - Reschedule options
+- `reminder_nudge` - 4h silence follow-up
 
 ---
 
@@ -782,14 +807,14 @@ Body:
 
 ## Flow Diagrams
 
-### Outbound Candidate Flow
+### Outbound Candidate Flow (HR reaches out)
 ```
-1. talent_outreach (MARKETING)
+1. talent_outreach (MARKETING) → HR sends to matching candidates
    Quick Reply: [Interested] [Not Interested]
 2. If "Interested" → schedule_options (UTILITY)
    Quick Reply: [Call Now] [In 10 min] [In 30 min] [Today Evening]
 3. If candidate picks time → Schedule call via QStash
-4. call_nudge (UTILITY) → Informational
+4. call_nudge (UTILITY) → Pre-call notification
 5. Bolna AI call placed
 6. If no response after 4h → reminder_nudge (UTILITY)
 7. If no response after 8h → Escalate to HR
@@ -798,14 +823,14 @@ Body:
 9. Max 2 call attempts → then status: unreachable
 ```
 
-### Inbound (Board-App/External) Flow
+### Inbound Flow (Candidate applies via board-app)
 ```
 1. Candidate applies → status: applied
 2. Admin triggers WhatsApp-first screening
 3. inbound_screening_invite (UTILITY) sent
    Quick Reply: [Call Now] [In 10 min] [In 30 min] [Today Evening] [Custom Time]
 4. Candidate picks time → Schedule call via QStash
-5. call_nudge (UTILITY) → Informational
+5. call_nudge (UTILITY) → Pre-call notification
 6. Bolna AI call placed
 7. If no response after 4h → reminder_nudge (UTILITY)
 8. If no response after 8h → Escalate to HR

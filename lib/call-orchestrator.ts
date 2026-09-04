@@ -229,6 +229,8 @@ export async function orchestrateScreening(input: OrchestrateScreeningInput): Pr
       const whatsapp = getWhatsAppService()
       
       // Send appropriate template based on origin
+      // Outbound: talent_outreach (MARKETING) - HR reaching out to candidates
+      // Inbound: inbound_screening_invite (UTILITY) - Candidate applied via board-app
       const outreachResult = origin === "inbound"
         ? await whatsapp.sendInboundScreeningInvite({
             phoneNumber: candidate.phone as string,
@@ -236,17 +238,22 @@ export async function orchestrateScreening(input: OrchestrateScreeningInput): Pr
             jobTitle: job.title || "",
             companyName: job.client_name || client?.name || "",
           })
-        : await whatsapp.sendScreeningInvite({
+        : await whatsapp.sendTalentOutreach({
             phoneNumber: candidate.phone as string,
             candidateName: candidate.name || "",
             jobTitle: job.title || "",
             companyName: job.client_name || client?.name || "",
+            location: job.city || "",
+            salary: formatSalaryRange(job),
+            matchScore: "8", // Default match score
+            skills: Array.isArray(job.skills_must_have) ? job.skills_must_have.join(", ") : job.skills_must_have || "",
+            applyLink: jobLink,
           })
 
       if (outreachResult.success) {
         const history = [{
           messageId: outreachResult.messageId || null,
-          template: origin === "inbound" ? "outreach_shortlisted" : "outreach_context",
+          template: origin === "inbound" ? "inbound_screening_invite" : "talent_outreach",
           sentAt: new Date().toISOString(),
           status: "sent",
         }]
@@ -257,7 +264,7 @@ export async function orchestrateScreening(input: OrchestrateScreeningInput): Pr
             whatsapp_message_id: outreachResult.messageId || null,
             whatsapp_sent_at: new Date().toISOString(),
             whatsapp_delivery_status: "sent",
-            whatsapp_outbound_template: origin === "inbound" ? "outreach_shortlisted" : "outreach_context",
+            whatsapp_outbound_template: origin === "inbound" ? "inbound_screening_invite" : "talent_outreach",
             whatsapp_outbound_params: { jobTitle: job.title, location: job.city, salaryBudget: formatSalaryRange(job) },
             whatsapp_history: history,
             call_payload_json: userData,
