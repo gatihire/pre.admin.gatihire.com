@@ -195,9 +195,6 @@ export class WhatsAppService {
     companyName: string
     location: string
     salary: string
-    matchScore: string
-    skills: string
-    applyLink: string
   }): Promise<SendMessageResult> {
     const templateName = process.env.WHATSAPP_TEMPLATE_TALENT_OUTREACH || "talent_outreach"
     
@@ -212,10 +209,7 @@ export class WhatsAppService {
             { type: "text", text: params.jobTitle },
             { type: "text", text: params.companyName },
             { type: "text", text: params.location },
-            { type: "text", text: params.salary },
-            { type: "text", text: params.matchScore },
-            { type: "text", text: params.skills },
-            { type: "text", text: params.applyLink }
+            { type: "text", text: params.salary }
           ]
         }
       ]

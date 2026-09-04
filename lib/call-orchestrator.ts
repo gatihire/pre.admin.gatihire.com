@@ -245,9 +245,6 @@ export async function orchestrateScreening(input: OrchestrateScreeningInput): Pr
             companyName: job.client_name || client?.name || "",
             location: job.city || "",
             salary: formatSalaryRange(job),
-            matchScore: "8", // Default match score
-            skills: Array.isArray(job.skills_must_have) ? job.skills_must_have.join(", ") : job.skills_must_have || "",
-            applyLink: jobLink,
           })
 
       if (outreachResult.success) {

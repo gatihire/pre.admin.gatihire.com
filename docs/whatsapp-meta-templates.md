@@ -18,41 +18,40 @@
 
 ## Template Inventory
 
-### Outbound Flow Templates (HR reaches out to candidates)
+### Outbound Flow (HR reaches out to candidates)
 
 | # | Template Name | Category | When Sent | Parameters |
 |---|---|---|---|---|
-| 1 | `talent_outreach` | MARKETING | Initial outreach to matching candidates | candidate_name, job_title, company_name, location, salary, match_score, skills, apply_link |
-| 2 | `schedule_options` | UTILITY | After candidate says "Interested" | candidate_name, job_title |
+| 1 | `talent_outreach` | MARKETING | Initial outreach | candidate_name, job_title, company_name, location, salary |
+| 2 | `screening_invite` | UTILITY | After "Interested" reply | candidate_name, job_title, company_name |
 | 3 | `call_nudge` | UTILITY | Pre-call notification | candidate_name, job_title, company_name |
-| 4 | `tried_calling` | UTILITY | After call fails — retry | candidate_name, job_title, company_name |
-| 5 | `missed_call_reschedule` | UTILITY | After Bolna call fails | candidate_name, job_title, company_name |
-| 6 | `reminder_nudge` | UTILITY | 4h silence after outreach | candidate_name, job_title, company_name, location |
+| 4 | `tried_calling` | UTILITY | After call fails | candidate_name, job_title, company_name |
+| 5 | `missed_call_reschedule` | UTILITY | Reschedule options | candidate_name, job_title, company_name |
+| 6 | `reminder_nudge` | UTILITY | 4h silence follow-up | candidate_name, job_title, company_name |
 
-### Inbound Flow Templates (Candidate applies via board-app)
+### Inbound Flow (Candidate applies via board-app)
 
 | # | Template Name | Category | When Sent | Parameters |
 |---|---|---|---|---|
-| 1 | `inbound_screening_invite` | UTILITY | Initial screening invite for inbound candidates | candidate_name, job_title, company_name |
-| 2 | `schedule_options` | UTILITY | After candidate picks time | candidate_name, job_title |
+| 1 | `inbound_screening_invite` | UTILITY | Screening invite | candidate_name, job_title, company_name |
+| 2 | `schedule_options` | UTILITY | Schedule call | candidate_name, job_title |
 | 3 | `call_nudge` | UTILITY | Pre-call notification | candidate_name, job_title, company_name |
-| 4 | `tried_calling` | UTILITY | After call fails — retry | candidate_name, job_title, company_name |
-| 5 | `missed_call_reschedule` | UTILITY | After Bolna call fails | candidate_name, job_title, company_name |
-| 6 | `reminder_nudge` | UTILITY | 4h silence after outreach | candidate_name, job_title, company_name, location |
+| 4 | `tried_calling` | UTILITY | After call fails | candidate_name, job_title, company_name |
+| 5 | `missed_call_reschedule` | UTILITY | Reschedule options | candidate_name, job_title, company_name |
+| 6 | `reminder_nudge` | UTILITY | 4h silence follow-up | candidate_name, job_title, company_name |
 
-### Template Usage Summary
+### Flow Summary
 
-| Flow | Initial Template | Category | Purpose |
-|------|------------------|----------|---------|
-| **Outbound** | `talent_outreach` | MARKETING | HR reaches out to candidates matching a role |
-| **Inbound** | `inbound_screening_invite` | UTILITY | Candidate applied via board-app, needs screening |
+| Flow | Step 1 | Step 2 | Step 3 | Step 4+ |
+|------|--------|--------|--------|---------|
+| **Outbound** | `talent_outreach` → Interested? | `screening_invite` → Pick time | `call_nudge` → AI calls | `tried_calling` / `missed_call_reschedule` |
+| **Inbound** | `inbound_screening_invite` → Pick time | `call_nudge` → AI calls | `tried_calling` / `missed_call_reschedule` | `reminder_nudge` at 4h |
 
-**Shared Templates (both flows):**
-- `schedule_options` - After candidate says "Interested"
-- `call_nudge` - Pre-call notification
-- `tried_calling` - After call fails
-- `missed_call_reschedule` - Reschedule options
-- `reminder_nudge` - 4h silence follow-up
+**Shared Templates:**
+- `call_nudge` — Pre-call notification (both flows)
+- `tried_calling` — After call fails (both flows)
+- `missed_call_reschedule` — Reschedule options (both flows)
+- `reminder_nudge` — 4h silence follow-up (both flows)
 
 ---
 
@@ -92,7 +91,7 @@ For each template:
 
 **Category:** MARKETING
 
-**Purpose:** Mass outreach to candidates matching a role
+**Purpose:** HR reaches out to candidates — we already have their resume, just need to know if interested
 
 **Template Name:** `talent_outreach`
 
@@ -100,17 +99,15 @@ For each template:
 ```
 Hi {{1}},
 
-We found a role that matches your profile:
+We came across your profile and think you would be a great fit for:
 
-Position: {{2}}
-Company: {{3}}
+{{2}} at {{3}}
 Location: {{4}}
 Salary: {{5}}
 
-Match Score: {{6}}/10
-Key Skills: {{7}}
+If this sounds interesting, let us know and we can schedule a quick screening call.
 
-If interested, please apply here: {{8}}
+Would you like to know more?
 ```
 
 **Variables:**
@@ -121,9 +118,6 @@ If interested, please apply here: {{8}}
 | `{{3}}` | company_name | text | TechCorp India |
 | `{{4}}` | location | text | Bangalore, India |
 | `{{5}}` | salary | text | 25-35 LPA |
-| `{{6}}` | match_score | text | 8 |
-| `{{7}}` | skills | text | Python, LLMs, RAG |
-| `{{8}}` | apply_link | text | https://gatihire.com/apply/abc123 |
 
 **Buttons:**
 - Custom: `[Interested]` (quick reply)
@@ -140,10 +134,10 @@ If interested, please apply here: {{8}}
   "components": [
     {
       "type": "BODY",
-      "text": "Hi {{1}},\n\nWe found a role that matches your profile:\n\nPosition: {{2}}\nCompany: {{3}}\nLocation: {{4}}\nSalary: {{5}}\n\nMatch Score: {{6}}/10\nKey Skills: {{7}}\n\nIf interested, please apply here: {{8}}",
+      "text": "Hi {{1}},\n\nWe came across your profile and think you would be a great fit for:\n\n{{2}} at {{3}}\nLocation: {{4}}\nSalary: {{5}}\n\nIf this sounds interesting, let us know and we can schedule a quick screening call.\n\nWould you like to know more?",
       "example": {
         "body_text": [
-          ["Rahul Sharma", "AI Engineer", "TechCorp India", "Bangalore, India", "25-35 LPA", "8", "Python, LLMs, RAG", "https://gatihire.com/apply/abc123"]
+          ["Rahul Sharma", "AI Engineer", "TechCorp India", "Bangalore, India", "25-35 LPA"]
         ]
       }
     },
@@ -170,19 +164,17 @@ If interested, please apply here: {{8}}
 
 **Category:** UTILITY
 
-**Purpose:** Inbound candidate screening invite
+**Purpose:** After outbound candidate says "Interested" — schedule screening call
 
 **Template Name:** `screening_invite`
 
 **Body:**
 ```
-Hi {{1}},
+Great, {{1}}!
 
-Thank you for applying for {{2}} at {{3}}.
+Let us schedule your screening call for the {{2}} position at {{3}}.
 
-Our AI assistant will conduct a brief screening call to discuss your experience and the role requirements. This typically takes 5-10 minutes.
-
-Please select a convenient time below, or reply with your preference.
+Please select a convenient time below.
 ```
 
 **Variables:**
@@ -199,7 +191,7 @@ Please select a convenient time below, or reply with your preference.
 - Custom: `[Today Evening]` (quick reply)
 - Custom: `[Custom Time]` (quick reply)
 
-**Tags:** `["ai_screening", "inbound"]`
+**Tags:** `["ai_screening", "outbound"]`
 
 **Meta Template API Payload:**
 ```json
@@ -210,7 +202,7 @@ Please select a convenient time below, or reply with your preference.
   "components": [
     {
       "type": "BODY",
-      "text": "Hi {{1}},\n\nThank you for applying for {{2}} at {{3}}.\n\nOur AI assistant will conduct a brief screening call to discuss your experience and the role requirements. This typically takes 5-10 minutes.\n\nPlease select a convenient time below, or reply with your preference.",
+      "text": "Great, {{1}}!\n\nLet us schedule your screening call for the {{2}} position at {{3}}.\n\nPlease select a convenient time below.",
       "example": {
         "body_text": [
           ["Priya Patel", "Full Stack Developer", "StartupXYZ"]
@@ -587,7 +579,7 @@ If you are interested, please reply here or select an option below.
 
 **Category:** UTILITY
 
-**Purpose:** Inbound candidate from board-app (professional tone)
+**Purpose:** Candidate applied via board-app — invite them for screening call
 
 **Template Name:** `inbound_screening_invite`
 
@@ -597,9 +589,9 @@ Hi {{1}},
 
 Thank you for applying for {{2}} at {{3}}.
 
-Our AI assistant will conduct a brief screening call to assess your fit for this role. The call will last approximately 5-10 minutes.
+We would like to schedule a brief screening call to discuss your experience and the role. The call will take about 5-10 minutes.
 
-Please select a convenient time below, or reply with your preference.
+When would be a good time for you?
 ```
 
 **Variables:**
@@ -627,7 +619,7 @@ Please select a convenient time below, or reply with your preference.
   "components": [
     {
       "type": "BODY",
-      "text": "Hi {{1}},\n\nThank you for applying for {{2}} at {{3}}.\n\nOur AI assistant will conduct a brief screening call to assess your fit for this role. The call will last approximately 5-10 minutes.\n\nPlease select a convenient time below, or reply with your preference.",
+      "text": "Hi {{1}},\n\nThank you for applying for {{2}} at {{3}}.\n\nWe would like to schedule a brief screening call to discuss your experience and the role. The call will take about 5-10 minutes.\n\nWhen would be a good time for you?",
       "example": {
         "body_text": [
           ["Karan Joshi", "ML Engineer", "AI Labs"]
@@ -807,59 +799,64 @@ Body:
 
 ## Flow Diagrams
 
-### Outbound Candidate Flow (HR reaches out)
+### Outbound Flow (HR reaches out)
 ```
-1. talent_outreach (MARKETING) → HR sends to matching candidates
-   Quick Reply: [Interested] [Not Interested]
-2. If "Interested" → schedule_options (UTILITY)
-   Quick Reply: [Call Now] [In 10 min] [In 30 min] [Today Evening]
-3. If candidate picks time → Schedule call via QStash
-4. call_nudge (UTILITY) → Pre-call notification
-5. Bolna AI call placed
-6. If no response after 4h → reminder_nudge (UTILITY)
-7. If no response after 8h → Escalate to HR
-8. If call fails → missed_call_reschedule (UTILITY)
-   Quick Reply: [Call Now] [In 10 min] [In 1 hour] [Tomorrow Morning]
-9. Max 2 call attempts → then status: unreachable
+1. HR triggers outreach → talent_outreach sent
+   "Hi Rahul, we have a role for you: AI Engineer at TechCorp..."
+   [Interested] [Not Interested]
+
+2. If "Interested" → screening_invite sent
+   "Great! Let's schedule your screening..."
+   [Call Now] [In 10 min] [In 30 min] [Today Evening]
+
+3. Candidate picks time → call_nudge sent (pre-call notification)
+   "Hi Rahul, our AI will call you shortly..."
+
+4. Bolna AI call placed → screening completed
+
+5. If no response after 4h → reminder_nudge sent
+   "Following up about the AI Engineer role..."
+
+6. If no response after 8h → Escalate to HR
 ```
 
 ### Inbound Flow (Candidate applies via board-app)
 ```
-1. Candidate applies → status: applied
-2. Admin triggers WhatsApp-first screening
-3. inbound_screening_invite (UTILITY) sent
-   Quick Reply: [Call Now] [In 10 min] [In 30 min] [Today Evening] [Custom Time]
-4. Candidate picks time → Schedule call via QStash
-5. call_nudge (UTILITY) → Pre-call notification
-6. Bolna AI call placed
-7. If no response after 4h → reminder_nudge (UTILITY)
-8. If no response after 8h → Escalate to HR
-9. If call fails → same as outbound
+1. Candidate applies → admin triggers screening
+   inbound_screening_invite sent
+   "Hi Karan, thank you for applying for ML Engineer at AI Labs..."
+   [Call Now] [In 10 min] [In 30 min] [Today Evening]
+
+2. Candidate picks time → call_nudge sent (pre-call notification)
+   "Hi Karan, our AI will call you shortly..."
+
+3. Bolna AI call placed → screening completed
+
+4. If no response after 4h → reminder_nudge sent
+
+5. If no response after 8h → Escalate to HR
 ```
 
 ### Direct Call Flow (call_now mode)
 ```
 1. Admin clicks "Call Now"
-2. call_nudge (UTILITY) → Pre-call notification sent
-3. Wait 60s (PRE_CALL_DELAY_MS)
+2. call_nudge sent (pre-call notification)
+3. Wait 60s
 4. Bolna AI call placed
-5. If fails → missed_call_reschedule (UTILITY)
-   Quick Reply: [Call Now] [In 10 min] [In 1 hour] [Tomorrow Morning]
-6. Max 2 attempts → then status: unreachable
+5. If fails → missed_call_reschedule sent
+   [Call Now] [In 10 min] [In 1 hour] [Tomorrow Morning]
+6. Max 2 attempts → status: unreachable
 ```
 
 ### Call Failure Flow
 ```
 1. Bolna call fails (no-answer/busy/disconnected)
-2. Increment retry_count
-3. Store partial transcript if available
-4. If retry_count < 2:
-   - Send missed_call_reschedule (UTILITY)
-   - Schedule retry via QStash (15min for no-answer/busy, 60min for other)
-5. If retry_count >= 2:
+2. If retry_count < 2:
+   - Send missed_call_reschedule
+   - Schedule retry (15min for no-answer, 60min for other)
+3. If retry_count >= 2:
    - Status → unreachable
-   - No more WhatsApp messages
-   - HR sees: "All retries exhausted — needs manual follow-up"
+   - HR notified: "All retries exhausted"
 ```
 
 ---
