@@ -190,8 +190,9 @@ interface InterviewEntry {
 const SOURCE_LABELS: Record<string, string> = {
   portal: "GatiHire Portal", apna: "Apna", naukri: "Naukri", workindia: "WorkIndia",
   job_board: "Job Board", applied: "Applied", candidate_board: "Candidate Board",
-  "board-app": "Board App", external_outreach: "External Outreach",
+  "board-app": "Talent Portal", external_outreach: "External Outreach",
   database: "Database Match", enhanced_match: "Enhanced Match", recruiter_upload: "Recruiter Upload",
+  linkedin: "LinkedIn",
 }
 
 function formatSourceLabel(source: string): string {
@@ -803,7 +804,7 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
               <SelectItem value="inbound">Inbound · applied to us</SelectItem>
               <SelectItem value="outbound">Outbound · we sourced</SelectItem>
               <SelectItem value="database">Database matches</SelectItem>
-              <SelectItem value="board-app">Board app</SelectItem>
+              <SelectItem value="board-app">Talent Portal</SelectItem>
             </SelectContent>
           </Select>
           {filter !== "all" && (
@@ -1360,8 +1361,8 @@ function CandidateCard({ application, jobId, callStatus, participant, aiInfo, cl
               </div>
 
               {/* Name + role + location */}
-              <div className="flex-1 min-w-0 space-y-0.5">
-                <div className="flex items-center gap-2">
+              <div className="flex-1 min-w-0 space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-bold text-lg text-zinc-900 truncate">{c.name}</h3>
                   {isNew && (
                     <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-[10px] font-bold">
@@ -1381,28 +1382,39 @@ function CandidateCard({ application, jobId, callStatus, participant, aiInfo, cl
                       {retagBusy ? <Loader2 className="h-2.5 w-2.5 animate-spin inline" /> : application.origin === "outbound" ? "Outbound" : "Inbound"}
                     </button>
                   )}
+                  {fitScore != null && (
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border ${
+                      fitScore >= 70 ? "bg-purple-50 text-purple-700 border-purple-200" :
+                      fitScore >= 40 ? "bg-amber-50 text-amber-700 border-amber-200" :
+                      "bg-rose-50 text-rose-600 border-rose-200"
+                    }`}>
+                      <BrainCircuit className="h-3 w-3" />{fitScore}%
+                    </span>
+                  )}
                 </div>
-                <p className="text-sm text-zinc-500 flex items-center gap-1.5">
+                <p className="text-sm text-zinc-600 flex items-center gap-1.5 leading-snug">
                   <Briefcase className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
                   <span className="truncate">{c.current_role || "No role specified"}{c.current_company ? ` at ${c.current_company}` : ""}</span>
                 </p>
-                <div className="flex items-center gap-1 text-xs text-zinc-400">
-                  <MapPin className="h-3 w-3 shrink-0" />
-                  <span>{c.location || "N/A"}</span>
-                  {c.total_experience && <span className="text-zinc-300 mx-1">·</span>}
-                  {c.total_experience && <span>{c.total_experience}yr exp</span>}
+                <div className="flex items-center gap-2 text-xs text-zinc-400">
+                  <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3 shrink-0" />{c.location || "N/A"}</span>
+                  {c.total_experience && <span className="text-zinc-300">|</span>}
+                  {c.total_experience && <span className="font-medium text-zinc-500">{c.total_experience} experience</span>}
                 </div>
                 {/* Key Metrics — always visible */}
-                <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                  {c.current_salary && (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-500">
-                      Current: <span className="text-zinc-700">{c.current_salary}</span>
-                    </span>
-                  )}
-                  {c.expected_salary && (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-500">
-                      Expected: <span className="text-zinc-700">{c.expected_salary}</span>
-                    </span>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+                  {(c.current_salary || c.expected_salary || c.notice_period) && (
+                    <div className="flex items-center gap-2 text-[11px]">
+                      {c.current_salary && (
+                        <span className="text-zinc-400">Current: <span className="font-semibold text-zinc-700">{c.current_salary}</span></span>
+                      )}
+                      {c.expected_salary && (
+                        <span className="text-zinc-400">Expected: <span className="font-semibold text-zinc-700">{c.expected_salary}</span></span>
+                      )}
+                      {c.notice_period && (
+                        <span className="text-zinc-400">Notice: <span className="font-semibold text-zinc-700">{c.notice_period}</span></span>
+                      )}
+                    </div>
                   )}
                   {application.source && (
                     <Badge variant="outline" className="text-[10px] font-semibold px-1.5 py-0 rounded-full bg-zinc-50 text-zinc-500 border-zinc-200">
@@ -1515,27 +1527,26 @@ function CandidateCard({ application, jobId, callStatus, participant, aiInfo, cl
                 </Tooltip>
               )}
 
-              {/* Fit Score button — JD fit analysis */}
-              {fitScore != null && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      className={`inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
-                        fitScore >= 70
-                          ? "border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100" :
-                        fitScore >= 40
-                          ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" :
-                        "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
-                      }`}
-                      onClick={() => onViewProfile(c, application, participant, aiInfo, fitScore)}
-                    >
-                      <BrainCircuit className="h-3.5 w-3.5" />
-                      {fitScore}%
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>View JD fit analysis</TooltipContent>
-                </Tooltip>
-              )}
+              {/* Fit Score button — always visible */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className={`inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
+                      fitScore == null ? "border-zinc-200 bg-zinc-50 text-zinc-400" :
+                      fitScore >= 70
+                        ? "border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100" :
+                      fitScore >= 40
+                        ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" :
+                      "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                    }`}
+                    onClick={() => onViewProfile(c, application, participant, aiInfo, fitScore)}
+                  >
+                    <BrainCircuit className="h-3.5 w-3.5" />
+                    {fitScore != null ? `${fitScore}%` : "—"}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>{fitScore != null ? "View JD fit analysis" : "Fit score pending"}</TooltipContent>
+              </Tooltip>
 
               {/* Phone number — actual value, click to copy */}
               {c.phone && (
