@@ -266,7 +266,7 @@ export function CandidateProfileSidebar({
       const res = await fetch(`/api/jobs/${jobId}/fit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ candidateIds: [c.id] })
+        body: JSON.stringify({ candidateIds: [c.id], force: true })
       })
       const data = await res.json()
       if (data.fits?.[c.id]) {

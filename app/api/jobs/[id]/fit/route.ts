@@ -18,6 +18,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { id: jobId } = await params
     const body = await request.json().catch(() => ({}))
     const candidateIds: string[] = Array.isArray(body.candidateIds) ? body.candidateIds : []
+    const force = body.force === true
     if (candidateIds.length === 0) {
       return NextResponse.json({ error: "candidateIds are required" }, { status: 400 })
     }
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const results: Record<string, unknown> = {}
     for (const candidate of candidates || []) {
       try {
-        results[candidate.id] = await getOrAnalyzeFit(jobId, candidate.id, candidate, job)
+        results[candidate.id] = await getOrAnalyzeFit(jobId, candidate.id, candidate, job, force)
       } catch (err: any) {
         logger.warn("Fit analysis failed for candidate", { candidateId: candidate.id, error: err.message })
         results[candidate.id] = { fit_score: null, pros: [], misses: [], interview_probes: [], summary: "Fit analysis failed" }
