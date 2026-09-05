@@ -8,6 +8,7 @@ import { ensureResumeBucketExists, supabaseAdmin } from "@/lib/supabase"
 import { checkFileExistsInSupabase } from "@/lib/supabase-storage-utils"
 import { getInternalAuthContext, hasPermission } from "@/lib/internal-auth"
 import { deriveOrigin } from "@/lib/origin"
+import { getOrAnalyzeFit } from "@/lib/candidate-fit"
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await getInternalAuthContext(request)
@@ -16,7 +17,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { id: jobId } = await params
 
-  const { data: job } = await supabaseAdmin.from("jobs").select("id,title,client_name").eq("id", jobId).single()
+  const { data: job } = await supabaseAdmin
+    .from("jobs")
+    .select("id,title,client_name,industry,city,location,experience_min,experience_max,skills_must_have,skills_good_to_have,description")
+    .eq("id", jobId)
+    .single()
 
   if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 })
 
@@ -121,60 +126,178 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       fileUrl = urlData.data.publicUrl
     }
 
-    const candidateData = {
-      name: parsedData.name,
-      email: parsedData.email || "",
-      phone: parsedData.phone || "",
-      dateOfBirth: parsedData.dateOfBirth || "",
-      gender: parsedData.gender || "",
-      maritalStatus: parsedData.maritalStatus || "",
-      currentRole: parsedData.currentRole || "Not specified",
-      desiredRole: parsedData.desiredRole || "",
-      currentCompany: parsedData.currentCompany || "",
-      location: parsedData.location || "Not specified",
-      preferredLocation: parsedData.preferredLocation || "",
-      totalExperience: parsedData.totalExperience || "Not specified",
-      currentSalary: parsedData.currentSalary || "",
-      expectedSalary: parsedData.expectedSalary || "",
-      noticePeriod: parsedData.noticePeriod || "",
-      highestQualification: parsedData.highestQualification || "",
-      technicalSkills: parsedData.technicalSkills || [],
-      softSkills: parsedData.softSkills || [],
-      resumeText: parsedData.resumeText,
-      fileName: rawFile.name,
-      filePath,
-      fileUrl,
-      fileHash,
-      status: "new" as const,
-      uploadedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      embedding: embedding,
+    const emailToCheck = parsedData.email?.trim()
+    const phoneToCheck = parsedData.phone?.trim()
+    const nameToCheck = parsedData.name?.trim()
+    const locationToCheck = parsedData.location?.trim()
+
+    let duplicate = null as any
+    if (emailToCheck && phoneToCheck) {
+      duplicate = await SupabaseCandidateService.getCandidateByEmailAndPhone(emailToCheck, phoneToCheck)
+    }
+    if (!duplicate && emailToCheck && !phoneToCheck) {
+      duplicate = await SupabaseCandidateService.getCandidateByEmail(emailToCheck)
+    }
+    if (!duplicate && phoneToCheck && !emailToCheck) {
+      duplicate = await SupabaseCandidateService.getCandidateByPhone(phoneToCheck)
+    }
+    if (!duplicate && nameToCheck && phoneToCheck && !emailToCheck) {
+      duplicate = await SupabaseCandidateService.getCandidateByNameAndPhone(nameToCheck, phoneToCheck)
+    }
+    if (!duplicate && nameToCheck && locationToCheck && !emailToCheck && !phoneToCheck) {
+      duplicate = await SupabaseCandidateService.getCandidateByNameAndLocation(nameToCheck, locationToCheck)
     }
 
-    const candidateId = await SupabaseCandidateService.addCandidate(candidateData)
+    let candidateId: string
 
-    await supabaseAdmin.from("candidates").update({ uploaded_by_auth_user_id: ctx.authUser.id }).eq("id", candidateId)
+    if (duplicate) {
+      candidateId = duplicate.id
+      fileUrl = await SupabaseCandidateService.uploadFile(file, candidateId)
+      filePath = fileUrl.split("/").pop() || ""
+
+      await SupabaseCandidateService.updateCandidate(candidateId, {
+        name: parsedData.name,
+        email: parsedData.email || "",
+        phone: parsedData.phone || "",
+        dateOfBirth: parsedData.dateOfBirth || "",
+        gender: parsedData.gender || "",
+        maritalStatus: parsedData.maritalStatus || "",
+        currentRole: parsedData.currentRole || "Not specified",
+        desiredRole: parsedData.desiredRole || "",
+        currentCompany: parsedData.currentCompany || "",
+        location: parsedData.location || "Not specified",
+        preferredLocation: parsedData.preferredLocation || "",
+        totalExperience: parsedData.totalExperience || "Not specified",
+        currentSalary: parsedData.currentSalary || "",
+        expectedSalary: parsedData.expectedSalary || "",
+        noticePeriod: parsedData.noticePeriod || "",
+        highestQualification: parsedData.highestQualification || "",
+        degree: parsedData.degree || "",
+        specialization: parsedData.specialization || "",
+        university: parsedData.university || "",
+        educationYear: parsedData.educationYear || "",
+        educationPercentage: parsedData.educationPercentage || "",
+        additionalQualifications: parsedData.additionalQualifications || "",
+        technicalSkills: parsedData.technicalSkills || [],
+        softSkills: parsedData.softSkills || [],
+        languagesKnown: parsedData.languagesKnown || [],
+        certifications: parsedData.certifications || [],
+        previousCompanies: parsedData.previousCompanies || [],
+        jobTitles: parsedData.jobTitles || [],
+        workDuration: parsedData.workDuration || [],
+        keyAchievements: parsedData.keyAchievements || [],
+        workExperience: parsedData.workExperience || [],
+        education: parsedData.education || [],
+        projects: parsedData.projects || [],
+        awards: parsedData.awards || [],
+        publications: parsedData.publications || [],
+        references: parsedData.references || [],
+        linkedinProfile: parsedData.linkedinProfile || "",
+        portfolioUrl: parsedData.portfolioUrl || "",
+        githubProfile: parsedData.githubProfile || "",
+        summary: parsedData.summary || "",
+        resumeText: parsedData.resumeText,
+        fileName: rawFile.name,
+        filePath,
+        fileUrl,
+        fileHash,
+        updatedAt: new Date().toISOString(),
+        embedding,
+      })
+
+      await supabaseAdmin.from("candidates").update({ uploaded_by_auth_user_id: ctx.authUser.id }).eq("id", candidateId)
+    } else {
+      const candidateData = {
+        name: parsedData.name,
+        email: parsedData.email || "",
+        phone: parsedData.phone || "",
+        dateOfBirth: parsedData.dateOfBirth || "",
+        gender: parsedData.gender || "",
+        maritalStatus: parsedData.maritalStatus || "",
+        currentRole: parsedData.currentRole || "Not specified",
+        desiredRole: parsedData.desiredRole || "",
+        currentCompany: parsedData.currentCompany || "",
+        location: parsedData.location || "Not specified",
+        preferredLocation: parsedData.preferredLocation || "",
+        totalExperience: parsedData.totalExperience || "Not specified",
+        currentSalary: parsedData.currentSalary || "",
+        expectedSalary: parsedData.expectedSalary || "",
+        noticePeriod: parsedData.noticePeriod || "",
+        highestQualification: parsedData.highestQualification || "",
+        degree: parsedData.degree || "",
+        specialization: parsedData.specialization || "",
+        university: parsedData.university || "",
+        educationYear: parsedData.educationYear || "",
+        educationPercentage: parsedData.educationPercentage || "",
+        additionalQualifications: parsedData.additionalQualifications || "",
+        technicalSkills: parsedData.technicalSkills || [],
+        softSkills: parsedData.softSkills || [],
+        languagesKnown: parsedData.languagesKnown || [],
+        certifications: parsedData.certifications || [],
+        previousCompanies: parsedData.previousCompanies || [],
+        jobTitles: parsedData.jobTitles || [],
+        workDuration: parsedData.workDuration || [],
+        keyAchievements: parsedData.keyAchievements || [],
+        workExperience: parsedData.workExperience || [],
+        education: parsedData.education || [],
+        projects: parsedData.projects || [],
+        awards: parsedData.awards || [],
+        publications: parsedData.publications || [],
+        references: parsedData.references || [],
+        linkedinProfile: parsedData.linkedinProfile || "",
+        portfolioUrl: parsedData.portfolioUrl || "",
+        githubProfile: parsedData.githubProfile || "",
+        summary: parsedData.summary || "",
+        resumeText: parsedData.resumeText,
+        fileName: rawFile.name,
+        filePath,
+        fileUrl,
+        fileHash,
+        status: "new" as const,
+        uploadedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        embedding,
+      }
+
+      candidateId = await SupabaseCandidateService.addCandidate(candidateData)
+
+      await supabaseAdmin.from("candidates").update({ uploaded_by_auth_user_id: ctx.authUser.id }).eq("id", candidateId)
+    }
 
     const { data: application } = await supabaseAdmin
       .from("applications")
-      .insert({
+      .upsert({
         job_id: jobId,
         candidate_id: candidateId,
-        status: "applied",
+        status: duplicate ? "applied" : "applied",
         source,
         origin,
         created_by: ctx.authUser.id,
         attribution: "recruiter_upload",
-      })
+      }, { onConflict: "job_id,candidate_id", ignoreDuplicates: true })
       .select()
       .single()
+
+    getOrAnalyzeFit(jobId, candidateId, {
+      id: candidateId,
+      current_role: parsedData.currentRole || "Not specified",
+      current_company: parsedData.currentCompany || "",
+      total_experience: parsedData.totalExperience || "Not specified",
+      location: parsedData.location || "Not specified",
+      technical_skills: parsedData.technicalSkills || [],
+      resume_text: parsedData.resumeText || "",
+      summary: parsedData.summary || "",
+    }, job).catch(() => {})
 
     return NextResponse.json({
       success: true,
       candidateId,
       applicationId: application?.id,
-      message: `Resume uploaded and assigned to ${job.title}`,
+      message: duplicate
+        ? `Resume matched existing candidate and assigned to ${job.title}`
+        : `Resume uploaded and assigned to ${job.title}`,
       fileUrl,
+      isDuplicate: !!duplicate,
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Upload failed" }, { status: 500 })

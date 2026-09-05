@@ -469,7 +469,20 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
   // Auto-fit: trigger fit analysis for candidates without scores
   useEffect(() => {
     if (!jobId || applications.length === 0) return
-    fetch(`/api/jobs/${jobId}/fit/auto`, { method: "POST" }).catch(() => {})
+    fetch(`/api/jobs/${jobId}/fit/auto`, { method: "POST" })
+      .then(res => res.json())
+      .then(data => {
+        if (data.fits && Object.keys(data.fits).length > 0) {
+          setFitScores(prev => {
+            const next = { ...prev }
+            Object.entries(data.fits).forEach(([id, fit]: [string, any]) => {
+              if (fit.fit_score != null) next[id] = fit.fit_score
+            })
+            return next
+          })
+        }
+      })
+      .catch(() => {})
   }, [jobId, applications.length])
 
   // Fetch existing fit scores
