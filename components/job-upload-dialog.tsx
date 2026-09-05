@@ -24,6 +24,7 @@ const INBOUND_OPTIONS = [
   { value: "apna", label: "Apna" },
   { value: "naukri", label: "Naukri" },
   { value: "workindia", label: "WorkIndia" },
+  { value: "linkedin", label: "LinkedIn" },
   { value: "job_board", label: "Other job board" },
 ]
 
