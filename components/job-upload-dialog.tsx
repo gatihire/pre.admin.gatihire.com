@@ -30,6 +30,7 @@ const INBOUND_OPTIONS = [
 const OUTBOUND_OPTIONS = [
   { value: "recruiter_upload", label: "Sourced Profile" },
   { value: "database", label: "Database Match" },
+  { value: "linkedin", label: "LinkedIn" },
 ]
 
 interface UploadFile {

@@ -26,6 +26,25 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { logger } from "@/lib/logger"
 import { invalidateSessionCache } from "@/lib/utils"
+import { Label } from "@/components/ui/label"
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select"
+
+const INBOUND_OPTIONS = [
+  { value: "portal", label: "GatiHire Portal" },
+  { value: "apna", label: "Apna" },
+  { value: "naukri", label: "Naukri" },
+  { value: "workindia", label: "WorkIndia" },
+  { value: "linkedin", label: "LinkedIn" },
+  { value: "job_board", label: "Other job board" },
+]
+
+const OUTBOUND_OPTIONS = [
+  { value: "recruiter_upload", label: "Sourced Profile" },
+  { value: "database", label: "Database Match" },
+  { value: "linkedin", label: "LinkedIn" },
+]
 
 interface UploadedFile {
   file: File
@@ -71,7 +90,14 @@ export function UploadSection({ jobId }: { jobId?: string }) {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [selectedPreview, setSelectedPreview] = useState<any>(null)
+  const [origin, setOrigin] = useState<"inbound" | "outbound">("inbound")
+  const [source, setSource] = useState("portal")
   const { toast } = useToast()
+
+  const selectOrigin = (o: "inbound" | "outbound") => {
+    setOrigin(o)
+    setSource(o === "inbound" ? INBOUND_OPTIONS[0].value : OUTBOUND_OPTIONS[0].value)
+  }
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
@@ -128,6 +154,8 @@ export function UploadSection({ jobId }: { jobId?: string }) {
 
       const formData = new FormData()
       formData.append("resume", file)
+      formData.append("source", source)
+      formData.append("origin", origin)
       if (jobId) formData.append("jobId", jobId)
 
       logger.info(`Uploading file: ${file.name}, size: ${file.size}, type: ${file.type}`)
@@ -395,6 +423,54 @@ export function UploadSection({ jobId }: { jobId?: string }) {
 
   return (
     <div className="space-y-6">
+      {/* Origin & Source Selection */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex-1">
+          <Label className="text-xs font-semibold text-zinc-600 mb-1.5 block">Candidate Origin</Label>
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => selectOrigin("inbound")}
+              className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold uppercase tracking-wider border-2 transition-all ${
+                origin === "inbound"
+                  ? "border-blue-500 bg-blue-50 text-blue-700"
+                  : "border-zinc-200 bg-white text-zinc-400 hover:border-zinc-300"
+              }`}
+            >
+              <span className={`h-2 w-2 rounded-full inline-block mr-1.5 ${origin === "inbound" ? "bg-blue-500" : "border-2 border-zinc-300"}`} />
+              Inbound
+            </button>
+            <button
+              onClick={() => selectOrigin("outbound")}
+              className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold uppercase tracking-wider border-2 transition-all ${
+                origin === "outbound"
+                  ? "border-violet-500 bg-violet-50 text-violet-700"
+                  : "border-zinc-200 bg-white text-zinc-400 hover:border-zinc-300"
+              }`}
+            >
+              <span className={`h-2 w-2 rounded-full inline-block mr-1.5 ${origin === "outbound" ? "bg-violet-500" : "border-2 border-zinc-300"}`} />
+              Outbound
+            </button>
+          </div>
+        </div>
+        <div className="flex-1">
+          <Label className="text-xs font-semibold text-zinc-600 mb-1.5 block">Source</Label>
+          <Select value={source} onValueChange={setSource} disabled={isProcessing}>
+            <SelectTrigger className="h-10 text-sm bg-white">
+              <SelectValue placeholder="Select source" />
+            </SelectTrigger>
+            <SelectContent>
+              {(origin === "inbound" ? INBOUND_OPTIONS : OUTBOUND_OPTIONS).map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <p className="text-xs text-zinc-400 -mt-4">
+        {origin === "inbound"
+          ? "Candidate applied to this job — they initiated contact."
+          : "Profile sourced/matched by you — AI screening intro will reference your outreach."}
+      </p>
       {/* Enhanced Upload Area */}
       <div
         {...getRootProps()}

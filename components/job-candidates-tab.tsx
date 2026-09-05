@@ -1063,6 +1063,34 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
         ) : (
           /* ── Candidate Cards ── */
           <div className="space-y-3">
+            {/* ── Select All Bar ── */}
+            {filtered.length > 0 && (
+              <div className="flex items-center gap-2 px-1 py-1">
+                <Checkbox
+                  checked={selectedIds.size === filtered.length && filtered.length > 0}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setSelectedIds(new Set(filtered.map(a => a.id)))
+                    } else {
+                      setSelectedIds(new Set())
+                    }
+                  }}
+                />
+                <span className="text-xs text-zinc-500">
+                  {selectedIds.size > 0
+                    ? `${selectedIds.size} of ${filtered.length} selected`
+                    : `Select all ${filtered.length} candidates`}
+                </span>
+                {selectedIds.size > 0 && (
+                  <button
+                    className="text-xs text-zinc-400 hover:text-zinc-600 ml-auto"
+                    onClick={() => setSelectedIds(new Set())}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            )}
             <AnimatePresence mode="popLayout">
               {filtered.map((app, index) => (
                 <motion.div
