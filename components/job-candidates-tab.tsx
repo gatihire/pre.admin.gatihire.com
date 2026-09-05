@@ -104,6 +104,8 @@ export interface CandidatesTabProps {
   activeStage: string
   activeCallSubFilter?: string
   clientDecisions?: Record<string, string | null> | null
+  participants?: Record<string, any> | null
+  fitScores?: Record<string, number | null> | null
   onStageSelect: (stage: string) => void
   onCallSubFilterChange?: (sub: string) => void
   onStageChange: (applicationId: string, newStage: string, rejectionReason?: string) => void
@@ -385,7 +387,7 @@ function formatRetryTime(nextRetryAt: string): string {
   return `${hours}h ${minutes % 60}m`
 }
 
-export function CandidatesTab({ jobId, applications, loading, activeStage, activeCallSubFilter, clientDecisions, onStageSelect, onCallSubFilterChange, onStageChange, onApplicationUpdated, onViewProfile, onRefresh }: CandidatesTabProps) {
+export function CandidatesTab({ jobId, applications, loading, activeStage, activeCallSubFilter, clientDecisions, participants: participantsProp, fitScores: fitScoresProp, onStageSelect, onCallSubFilterChange, onStageChange, onApplicationUpdated, onViewProfile, onRefresh }: CandidatesTabProps) {
   const { toast } = useToast()
   const [pendingStageChange, setPendingStageChange] = useState<{
     applicationId: string; from: string; to: string; candidateName: string
@@ -396,13 +398,9 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
     activeCallSubFilter && activeCallSubFilter !== "all" ? (activeCallSubFilter as CallSubFilter) : "all"
   )
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [callStatusByCandidate, setCallStatusByCandidate] = useState<Record<string, string>>({})
-  const [participantIdByCandidate, setParticipantIdByCandidate] = useState<Record<string, string>>({})
-  const [participantDataByCandidate, setParticipantDataByCandidate] = useState<Record<string, any>>({})
   const [callNowCandidate, setCallNowCandidate] = useState<string | null>(null)
   const [nudgeBusyCandidate, setNudgeBusyCandidate] = useState<string | null>(null)
   const [callMode, setCallMode] = useState<"call_now" | "whatsapp_first" | "info_first" | "extended_screening">("call_now")
-  const [aiInfoByCandidate, setAiInfoByCandidate] = useState<Record<string, { recommendation?: string; score?: number }>>({})
   const [callingStarted, setCallingStarted] = useState(false)
   const [bulkStage, setBulkStage] = useState("ai_screen")
   const [bulkBusy, setBulkBusy] = useState(false)
@@ -421,87 +419,74 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
   const [interviewLoading, setInterviewLoading] = useState(false)
   const [interviewDrafts, setInterviewDrafts] = useState<Record<string, { notes: string; scheduledAtLocal: string }>>({})
 
-  // Fit analysis state
-  const [fitScores, setFitScores] = useState<Record<string, number>>({})
+  // Viewed candidates (local only)
   const [viewedCandidates, setViewedCandidates] = useState<Set<string>>(new Set())
 
+  // Compute derived maps from participants prop (single source of truth)
+  const [participantsLocal, setParticipantsLocal] = useState<Record<string, any> | null>(null)
+
+  const activeParticipants = participantsLocal || participantsProp || {}
+
+  const participantMaps = useMemo(() => {
+    const map: Record<string, string> = {}
+    const idMap: Record<string, string> = {}
+    const aiMap: Record<string, { recommendation?: string; score?: number }> = {}
+    const pDataMap: Record<string, any> = {}
+    for (const [cid, p] of Object.entries(activeParticipants)) {
+      if (!p) continue
+      map[cid] = callSubSection(p)
+      idMap[cid] = p.id
+      pDataMap[cid] = p
+      aiMap[cid] = {
+        recommendation: p.ai_recommendation ?? undefined,
+        score: p.ai_score != null ? Number(p.ai_score) : undefined,
+      }
+    }
+    return { map, idMap, aiMap, pDataMap }
+  }, [activeParticipants])
+
+  const callStatusByCandidate = participantMaps.map
+  const participantIdByCandidate = participantMaps.idMap
+  const participantDataByCandidate = participantMaps.pDataMap
+  const aiInfoByCandidate = participantMaps.aiMap
+
+  // Fit scores: normalize from prop (null → not present)
+  const [fitScoresLocal, setFitScoresLocal] = useState<Record<string, number | null> | null>(null)
+  const fitScores = useMemo(() => {
+    const source = fitScoresLocal || fitScoresProp || {}
+    const out: Record<string, number> = {}
+    for (const [id, score] of Object.entries(source)) {
+      if (score != null) out[id] = score
+    }
+    return out
+  }, [fitScoresLocal, fitScoresProp])
+
+  // Lightweight polling for participants during active calls only
   const fetchParticipants = useCallback(async () => {
     try {
       const res = await fetch(`/api/phone-screening/participants?jobId=${jobId}`)
       if (res.ok) {
         const data = await res.json()
-        const map: Record<string, string> = {}
-        const idMap: Record<string, string> = {}
-        const aiMap: Record<string, { recommendation?: string; score?: number }> = {}
-        const pDataMap: Record<string, any> = {}
+        const map: Record<string, any> = {}
         for (const p of Array.isArray(data) ? data : []) {
-          if (p?.candidate_id) {
-            if (!map[p.candidate_id]) map[p.candidate_id] = callSubSection(p)
-            if (!idMap[p.candidate_id]) idMap[p.candidate_id] = p.id
-            if (!pDataMap[p.candidate_id]) pDataMap[p.candidate_id] = p
-            aiMap[p.candidate_id] = {
-              recommendation: p.ai_recommendation ?? undefined,
-              score: p.ai_score != null ? Number(p.ai_score) : undefined,
-            }
+          if (p?.candidate_id && !map[p.candidate_id]) {
+            map[p.candidate_id] = p
           }
         }
-        setCallStatusByCandidate(map)
-        setParticipantIdByCandidate(idMap)
-        setParticipantDataByCandidate(pDataMap)
-        setAiInfoByCandidate(aiMap)
+        setParticipantsLocal(map)
       }
     } catch { /* noop */ }
   }, [jobId])
-
-  useEffect(() => { fetchParticipants() }, [fetchParticipants])
 
   // Auto-timeout: re-evaluate call statuses every 30 seconds for 3-min timeout
   useEffect(() => {
     const hasCalling = Object.values(callStatusByCandidate).some((s) => s === "calling")
     if (!hasCalling) return
     const interval = setInterval(() => {
-      // Re-evaluate by triggering a state update
-      setCallStatusByCandidate((prev) => ({ ...prev }))
+      setParticipantsLocal(prev => prev ? { ...prev } : null)
     }, 30000)
     return () => clearInterval(interval)
   }, [callStatusByCandidate])
-
-  // Auto-fit: trigger fit analysis for candidates without scores
-  useEffect(() => {
-    if (!jobId || applications.length === 0) return
-    fetch(`/api/jobs/${jobId}/fit/auto`, { method: "POST" })
-      .then(res => res.json())
-      .then(data => {
-        if (data.fits && Object.keys(data.fits).length > 0) {
-          setFitScores(prev => {
-            const next = { ...prev }
-            Object.entries(data.fits).forEach(([id, fit]: [string, any]) => {
-              if (fit.fit_score != null) next[id] = fit.fit_score
-            })
-            return next
-          })
-        }
-      })
-      .catch(() => {})
-  }, [jobId, applications.length])
-
-  // Fetch existing fit scores
-  useEffect(() => {
-    if (!jobId || applications.length === 0) return
-    const ids = applications.map(a => a.candidate_id).join(",")
-    fetch(`/api/jobs/${jobId}/fit?candidateIds=${ids}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.fits) {
-          const scores: Record<string, number> = {}
-          Object.entries(data.fits).forEach(([id, fit]: [string, any]) => {
-            if (fit.fit_score != null) scores[id] = fit.fit_score
-          })
-          setFitScores(scores)
-        }
-      })
-      .catch(() => {})
-  }, [jobId, applications])
 
   const fetchInterviews = useCallback(async () => {
     setInterviewLoading(true)
@@ -561,7 +546,7 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
       (s) => s === "calling" || s === "whatsapp_sent" || s === "replied" || s === "retrying" || s === "no_answer" || s === "busy"
     )
     if (!hasActiveCalls) return
-    const interval = setInterval(() => fetchParticipants(), 5000)
+    const interval = setInterval(() => fetchParticipants(), 10000)
     return () => clearInterval(interval)
   }, [callStatusByCandidate, fetchParticipants])
 

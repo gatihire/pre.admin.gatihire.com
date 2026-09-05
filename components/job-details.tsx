@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -79,6 +79,9 @@ export function JobDetails({ job, onBack, initialTab }: JobDetailsProps) {
   const { toast } = useToast()
   const [applications, setApplications] = useState<Application[]>([])
   const [applicationLoading, setApplicationLoading] = useState(true)
+  const [participants, setParticipants] = useState<Record<string, any>>({})
+  const [fitScores, setFitScores] = useState<Record<string, number | null>>({})
+  const prevApplicationsRef = useRef<Application[]>([])
   const [activeTab, setActiveTab] = useState<TabId>(() => {
     const t = parseTab(initialTab ?? null)
     return t || "pipeline"
@@ -110,25 +113,9 @@ export function JobDetails({ job, onBack, initialTab }: JobDetailsProps) {
   const publicApplyUrl = getBoardJobApplyUrl(job.id)
 
   useEffect(() => {
-    fetchApplications()
-    fetchClientDecisions()
+    fetchPipeline()
     if (job.client_id) fetchClient()
   }, [job.id])
-
-  const fetchClientDecisions = async () => {
-    try {
-      const res = await fetch(`/api/jobs/${job.id}/shortlist-share`, { cache: "no-store" })
-      const data = await res.json()
-      if (!res.ok) return
-      const map: Record<string, string | null> = {}
-      for (const s of data.shares || []) {
-        for (const c of s.candidates || []) {
-          map[c.applicationId] = c.status
-        }
-      }
-      setClientDecisions(map)
-    } catch { /* noop */ }
-  }
 
   const fetchClient = async () => {
     try {
@@ -138,14 +125,24 @@ export function JobDetails({ job, onBack, initialTab }: JobDetailsProps) {
     } catch { setClient(null) }
   }
 
-  const fetchApplications = async (opts?: { force?: boolean }) => {
+  const fetchPipeline = async (opts?: { force?: boolean }) => {
     setApplicationLoading(true)
     try {
-      const data = await cachedFetchJson<Application[]>(
-        `internal:applications:job:${job.id}`, `/api/applications?jobId=${job.id}`,
-        undefined, { ttlMs: 2 * 60_000, force: Boolean(opts?.force) }
+      const cacheKey = `internal:pipeline:job:${job.id}`
+      const data = await cachedFetchJson<any>(
+        cacheKey, `/api/jobs/${job.id}/pipeline`,
+        undefined, { ttlMs: 30_000, force: Boolean(opts?.force) }
       )
-      setApplications(Array.isArray(data) ? data : [])
+      if (data) {
+        const newApps = Array.isArray(data.applications) ? data.applications : []
+        setApplications(prev => {
+          if (JSON.stringify(prev) === JSON.stringify(newApps)) return prev
+          return newApps
+        })
+        setParticipants(data.participants || {})
+        setFitScores(data.fitScores || {})
+        setClientDecisions(data.clientDecisions || {})
+      }
     } catch {
       toast({ title: "Failed to load candidates", variant: "destructive" })
     } finally {
@@ -180,16 +177,16 @@ export function JobDetails({ job, onBack, initialTab }: JobDetailsProps) {
       })
       if (!res.ok) throw new Error("Failed")
       toast({ title: "Status Updated", description: `Moved to ${newStatus}` })
-      invalidateSessionCache(`internal:applications:job:${job.id}`)
+      invalidateSessionCache(`internal:pipeline:job:${job.id}`)
     } catch {
       toast({ title: "Update failed", variant: "destructive" })
-      fetchApplications({ force: true })
+      fetchPipeline({ force: true })
     }
   }, [job.id, toast])
 
   const updateApplication = useCallback((updated: Application) => {
     setApplications((prev) => prev.map((app) => app.id === updated.id ? updated : app))
-    invalidateSessionCache(`internal:applications:job:${job.id}`)
+    invalidateSessionCache(`internal:pipeline:job:${job.id}`)
   }, [job.id])
 
   const renderTab = () => {
@@ -203,12 +200,14 @@ export function JobDetails({ job, onBack, initialTab }: JobDetailsProps) {
             activeStage={candidateStage}
             activeCallSubFilter={candidateSubFilter}
             clientDecisions={clientDecisions}
+            participants={participants}
+            fitScores={fitScores}
             onStageSelect={selectStage}
             onCallSubFilterChange={setCandidateSubFilter}
             onStageChange={updateStatus}
             onApplicationUpdated={updateApplication}
             onViewProfile={handleViewProfile}
-            onRefresh={() => fetchApplications({ force: true })}
+            onRefresh={() => fetchPipeline({ force: true })}
           />
         )
       case "sourcing":
@@ -219,7 +218,7 @@ export function JobDetails({ job, onBack, initialTab }: JobDetailsProps) {
             view={sourcingView}
             onViewChange={setSourcingView}
             onViewProfile={handleViewProfile}
-            onCandidateAdded={() => fetchApplications({ force: true })}
+            onCandidateAdded={() => fetchPipeline({ force: true })}
           />
         )
       case "invites":
@@ -350,8 +349,8 @@ export function JobDetails({ job, onBack, initialTab }: JobDetailsProps) {
         />
       )}
 
-      <ShareShortlistDialog jobId={job.id} jobTitle={job.title} open={shareOpen} onOpenChange={setShareOpen} onDecisionsChanged={() => { fetchClientDecisions(); fetchApplications({ force: true }) }} />
-      <JobUploadDialog jobId={job.id} jobTitle={job.title} open={uploadOpen} onOpenChange={setUploadOpen} onComplete={() => fetchApplications({ force: true })} />
+      <ShareShortlistDialog jobId={job.id} jobTitle={job.title} open={shareOpen} onOpenChange={setShareOpen} onDecisionsChanged={() => fetchPipeline({ force: true })} />
+      <JobUploadDialog jobId={job.id} jobTitle={job.title} open={uploadOpen} onOpenChange={setUploadOpen} onComplete={() => fetchPipeline({ force: true })} />
 
       {/* Client Sheet */}
       <Sheet open={clientOpen} onOpenChange={setClientOpen}>
