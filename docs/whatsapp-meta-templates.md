@@ -47,6 +47,7 @@
 | 14 | `detailed_info_request` | UTILITY | Extended screening — collect full details (CTC, experience, location, relocation, switching reason) |
 | 15 | `screening_filtered_out` | UTILITY | Candidate filtered out after pre-screen (e.g., comp mismatch) |
 | 16 | `second_reminder_nudge` | UTILITY | Second nudge when max_call_attempts > 2 |
+| 17 | `info_review_pending` | UTILITY | Candidate profile flagged for HR review — inform them we'll get back |
 
 ---
 
@@ -66,27 +67,31 @@ inbound_screening_invite → Pick time → call_nudge → AI call
 
 ---
 
-## Flow 2: Info Collection + Screening (New)
+## Flow 2: Info Collection + Screening (Now uses detailed template)
 
 ### Outbound
 ```
 1. talent_outreach → [Interested]
-2. outbound_info_request → "Please share CTC, Expected, Notice Period"
-3. Candidate replies → info_received_confirm → "Thanks! Let's schedule"
-4. Candidate picks time → ai_call_reassurance → "Our team will call you"
-5. call_nudge → AI call placed
+2. detailed_info_request → "Please share: CTC, Expected CTC, Experience, Notice Period, City, Relocate, Reason"
+3. Candidate replies → AI pre-screen evaluation:
+   - proceed → info_received_confirm → schedule AI call
+   - needs_review → info_review_pending → HR reviews → approve → info_received_confirm
+   - filtered_out → screening_filtered_out
 ```
 
 ### Inbound
 ```
 1. inbound_screening_invite → [Interested]
-2. inbound_info_request → "Please share CTC, Expected, Notice Period"
-3. Candidate replies → info_received_confirm → "Thanks! Let's schedule"
-4. Candidate picks time → ai_call_reassurance → "Our team will call you"
-5. call_nudge → AI call placed
+2. detailed_info_request → "Please share: CTC, Expected CTC, Experience, Notice Period, City, Relocate, Reason"
+3. Candidate replies → AI pre-screen evaluation:
+   - proceed → info_received_confirm → schedule AI call
+   - needs_review → info_review_pending → HR reviews → approve → info_received_confirm
+   - filtered_out → screening_filtered_out
 ```
 
-**When to use:** HR wants to collect basic info (CTC, notice period) before scheduling the AI call. Better for bulk uploads where HR wants to filter candidates before calls.
+**When to use:** HR wants to collect all details upfront, pre-screen automatically, only spend AI call budget on qualified candidates. This is now the default for both inbound and outbound.
+
+> **Note:** Templates 9 (`outbound_info_request`) and 10 (`inbound_info_request`) are replaced by template 14 (`detailed_info_request`) for all info collection flows.
 
 ---
 
@@ -99,21 +104,23 @@ inbound_screening_invite → Pick time → call_nudge → AI call
 3. Candidate picks reason → rejection_reason captured in DB
 ```
 
-### Extended Screening Flow
+### Extended Screening Flow (Now standard for all info collection)
 ```
-1. Admin selects "Extended Screening" mode
+1. Admin selects "Collect Info First" or "Extended Screening" mode
 2. detailed_info_request → "Please share: CTC, Expected CTC, Experience, Notice Period, Current City, Willing to Relocate (yes/no), Reason for Switching"
 3. Candidate replies in ONE message
 4. info-collector parses reply + pre-screening evaluation:
-   - Salary range check (±20% of job range)
-   - Experience range check (70%-150% of job range)
+   - Salary range check (±40% of job range for review, ±40%+ for reject)
+   - Experience range check (50%-200% of job range)
    - Location mismatch check (if not willing to relocate)
-   - Notice period check (>90 days flagged)
-5. If filtered out → screening_filtered_out sent with reason
-6. If proceeds → info_received_confirm → schedule AI call
+   - Notice period check (>120 days flagged)
+5. Decision:
+   - proceed → info_received_confirm → schedule AI call
+   - needs_review → info_review_pending → HR reviews in dashboard
+   - filtered_out → screening_filtered_out sent with reason
 ```
 
-**When to use:** HR wants maximum efficiency — collect all info upfront, pre-screen automatically, only spend AI call budget on qualified candidates.
+**When to use:** Default for all info collection flows. Collects all details upfront, pre-screen automatically, only spend AI call budget on qualified candidates.
 
 ---
 
@@ -530,6 +537,38 @@ Looking forward to hearing from you!
 
 ---
 
+### 17. Info Review Pending (`info_review_pending`)
+
+**Category:** UTILITY
+
+**Purpose:** Inform candidate their profile is under HR review after AI prescreen
+
+**Body:**
+```
+Hi {{1}},
+
+Thank you for sharing your details for the {{2}} position at {{3}}.
+
+Our team is reviewing your profile. We will get back to you shortly with next steps.
+
+We appreciate your patience!
+```
+
+**Variables:**
+| Position | Name | Example |
+|----------|------|---------|
+| `{{1}}` | `candidate_name` | "Rahul" |
+| `{{2}}` | `job_title` | "Operations Manager" |
+| `{{3}}` | `company_name` | "SureShip" |
+
+**Buttons:** None (informational only)
+
+**Code:** `sendInfoReviewPending({ phoneNumber, candidateName, jobTitle, companyName })`
+
+**When sent:** After AI prescreen evaluates a candidate's info reply and decides `needs_review` (e.g., location mismatch, long notice period, borderline salary). The candidate is told we'll review and get back — HR then decides in the dashboard.
+
+---
+
 ## Environment Variables
 
 ```env
@@ -554,6 +593,7 @@ WHATSAPP_TEMPLATE_NOT_INTERESTED_REASON="not_interested_reason"
 WHATSAPP_TEMPLATE_DETAILED_INFO_REQUEST="detailed_info_request"
 WHATSAPP_TEMPLATE_SCREENING_FILTERED_OUT="screening_filtered_out"
 WHATSAPP_TEMPLATE_SECOND_REMINDER="second_reminder_nudge"
+WHATSAPP_TEMPLATE_INFO_REVIEW_PENDING="info_review_pending"
 ```
 
 ---
@@ -573,7 +613,8 @@ applied → info_requested → info_received → call_scheduled → calling → 
 ### Flow 3: Extended Screening
 ```
 applied → info_requested → [pre-screen] → info_received → call_scheduled → calling → call_done
-                                           → filtered_out (if pre-screen fails)
+                           → needs_review → [HR approves] → info_received → call_scheduled → call_done
+                           → filtered_out (if pre-screen fails)
 ```
 
 ### Rejection Reasons (captured on participants)

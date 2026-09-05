@@ -228,7 +228,7 @@ export async function handleInfoReply(
 export async function handleDetailedInfoReply(
   participantId: string,
   replyText: string
-): Promise<{ success: boolean; error?: string; parsed?: ParsedInfo; prescreen?: { decision: string; reason: string } }> {
+): Promise<{ success: boolean; error?: string; parsed?: ParsedInfo; prescreen?: PrescreenResult }> {
   try {
     const { data: participant, error: fetchError } = await supabaseAdmin
       .from("phone_screening_participants")
@@ -274,19 +274,38 @@ export async function handleDetailedInfoReply(
     const job = participant.jobs as any
     const prescreen = evaluateCandidate(parsed, job)
 
-    // Update participant
+    // Save prescreen result to candidates table
+    await supabaseAdmin
+      .from("candidates")
+      .update({
+        ai_prescreen_decision: prescreen.decision,
+        ai_prescreen_reason: prescreen.reason,
+        ai_prescreened_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", participant.candidate_id)
+
+    // Update participant status based on decision
+    const participantUpdates: any = {
+      info_received_at: new Date().toISOString(),
+      prescreen_decision: prescreen.decision,
+      prescreen_reason: prescreen.reason,
+      updated_at: new Date().toISOString(),
+    }
+    if (prescreen.decision === "filtered_out") {
+      participantUpdates.status = "filtered_out"
+    } else if (prescreen.decision === "needs_review") {
+      participantUpdates.status = "needs_review"
+    } else {
+      participantUpdates.status = "info_received"
+    }
+
     await supabaseAdmin
       .from("phone_screening_participants")
-      .update({
-        status: prescreen.decision === "filtered_out" ? "filtered_out" : "info_received",
-        info_received_at: new Date().toISOString(),
-        prescreen_decision: prescreen.decision,
-        prescreen_reason: prescreen.reason,
-        updated_at: new Date().toISOString()
-      })
+      .update(participantUpdates)
       .eq("id", participantId)
 
-    // Send appropriate response
+    // Send appropriate WhatsApp response
     const whatsapp = getWhatsAppService()
     const candidate = participant.candidates as any
 
@@ -299,7 +318,18 @@ export async function handleDetailedInfoReply(
       logger.info("Candidate filtered out after pre-screen", {
         participantId, candidateId: participant.candidate_id, reason: prescreen.reason
       })
+    } else if (prescreen.decision === "needs_review") {
+      await whatsapp.sendInfoReviewPending({
+        phoneNumber: candidate.phone || "",
+        candidateName: candidate.name || "",
+        jobTitle: job?.title || "",
+        companyName: job?.client_name || "",
+      })
+      logger.info("Candidate flagged for HR review after pre-screen", {
+        participantId, candidateId: participant.candidate_id, reason: prescreen.reason
+      })
     } else {
+      // proceed — send info received confirmation with schedule buttons
       await whatsapp.sendInfoReceivedConfirm({
         phoneNumber: candidate.phone || "",
         candidateName: candidate.name || "",
@@ -319,70 +349,162 @@ export async function handleDetailedInfoReply(
   }
 }
 
-// ── Pre-screening evaluation (rule-based) ──
+// ── Pre-screening evaluation (3-tier: proceed / needs_review / filtered_out) ──
 
-function evaluateCandidate(parsed: ParsedInfo, job: any): { decision: string; reason: string } {
+export interface PrescreenCheck {
+  field: string
+  verdict: "pass" | "review" | "fail"
+  detail: string
+}
+
+export interface PrescreenResult {
+  decision: "proceed" | "needs_review" | "filtered_out"
+  reason: string
+  checks: PrescreenCheck[]
+}
+
+function evaluateCandidate(parsed: ParsedInfo, job: any): PrescreenResult {
+  const checks: PrescreenCheck[] = []
   const reasons: string[] = []
 
-  // 1. Salary range check
+  // ── 1. Salary range check ──
   if (parsed.expectedCtc && job?.salary_min != null && job?.salary_max != null) {
     const expectedNum = extractCtcNumber(parsed.expectedCtc)
     if (expectedNum != null) {
       const jobMin = Number(job.salary_min)
       const jobMax = Number(job.salary_max)
-      // Allow 20% buffer on both sides
-      if (expectedNum < jobMin * 0.8) {
-        reasons.push(`expected_ctc_below_range (expected ${parsed.expectedCtc}, job range ${jobMin}-${jobMax})`)
-      } else if (expectedNum > jobMax * 1.2) {
-        reasons.push(`expected_ctc_above_range (expected ${parsed.expectedCtc}, job range ${jobMin}-${jobMax})`)
+      const range = jobMax - jobMin
+      if (expectedNum < jobMin) {
+        const deficit = jobMin - expectedNum
+        if (deficit > range * 0.4) {
+          checks.push({ field: "salary", verdict: "fail", detail: `Expected ${parsed.expectedCtc} is well below JD range ${jobMin}-${jobMax}` })
+          reasons.push(`salary_below_range (${parsed.expectedCtc} vs ${jobMin}-${jobMax})`)
+        } else {
+          checks.push({ field: "salary", verdict: "review", detail: `Expected ${parsed.expectedCtc} is below JD range ${jobMin}-${jobMax}` })
+          reasons.push(`salary_below_range (${parsed.expectedCtc} vs ${jobMin}-${jobMax})`)
+        }
+      } else if (expectedNum > jobMax) {
+        const excess = expectedNum - jobMax
+        if (excess > range * 0.4) {
+          checks.push({ field: "salary", verdict: "fail", detail: `Expected ${parsed.expectedCtc} is well above JD range ${jobMin}-${jobMax}` })
+          reasons.push(`salary_above_range (${parsed.expectedCtc} vs ${jobMin}-${jobMax})`)
+        } else {
+          checks.push({ field: "salary", verdict: "review", detail: `Expected ${parsed.expectedCtc} is above JD range ${jobMin}-${jobMax}` })
+          reasons.push(`salary_above_range (${parsed.expectedCtc} vs ${jobMin}-${jobMax})`)
+        }
+      } else {
+        checks.push({ field: "salary", verdict: "pass", detail: `Expected ${parsed.expectedCtc} within JD range ${jobMin}-${jobMax}` })
       }
+    } else {
+      checks.push({ field: "salary", verdict: "review", detail: `Could not parse expected CTC: "${parsed.expectedCtc}"` })
     }
+  } else if (!parsed.expectedCtc && job?.salary_min != null) {
+    checks.push({ field: "salary", verdict: "review", detail: "Expected CTC not provided" })
+    reasons.push("salary_not_provided")
   }
 
-  // 2. Experience range check
-  if (parsed.totalExperience != null && job?.experience_min_years != null) {
-    const minExp = Number(job.experience_min_years)
-    if (parsed.totalExperience < minExp * 0.7) {
-      reasons.push(`experience_insufficient (has ${parsed.totalExperience}y, min ${minExp}y)`)
+  // ── 2. Experience range check ──
+  if (parsed.totalExperience != null && (job?.experience_min_years != null || job?.experience_max_years != null)) {
+    const minExp = job?.experience_min_years != null ? Number(job.experience_min_years) : 0
+    const maxExp = job?.experience_max_years != null ? Number(job.experience_max_years) : 999
+
+    if (parsed.totalExperience < minExp * 0.5) {
+      checks.push({ field: "experience", verdict: "fail", detail: `${parsed.totalExperience} yrs — well below minimum ${minExp} yrs` })
+      reasons.push(`experience_insufficient (${parsed.totalExperience}y < ${minExp}y)`)
+    } else if (parsed.totalExperience < minExp * 0.7) {
+      checks.push({ field: "experience", verdict: "review", detail: `${parsed.totalExperience} yrs — below preferred minimum ${minExp} yrs` })
+      reasons.push(`experience_low (${parsed.totalExperience}y vs min ${minExp}y)`)
+    } else if (parsed.totalExperience > maxExp * 2) {
+      checks.push({ field: "experience", verdict: "fail", detail: `${parsed.totalExperience} yrs — well above maximum ${maxExp} yrs` })
+      reasons.push(`experience_overqualified (${parsed.totalExperience}y > ${maxExp}y)`)
+    } else if (parsed.totalExperience > maxExp * 1.5) {
+      checks.push({ field: "experience", verdict: "review", detail: `${parsed.totalExperience} yrs — above preferred maximum ${maxExp} yrs` })
+      reasons.push(`experience_high (${parsed.totalExperience}y vs max ${maxExp}y)`)
+    } else {
+      checks.push({ field: "experience", verdict: "pass", detail: `${parsed.totalExperience} yrs within JD range ${minExp}-${maxExp}` })
     }
-  }
-  if (parsed.totalExperience != null && job?.experience_max_years != null) {
-    const maxExp = Number(job.experience_max_years)
-    if (maxExp > 0 && parsed.totalExperience > maxExp * 1.5) {
-      reasons.push(`experience_overqualified (has ${parsed.totalExperience}y, max ${maxExp}y)`)
-    }
+  } else if (parsed.totalExperience == null && job?.experience_min_years != null) {
+    checks.push({ field: "experience", verdict: "review", detail: "Experience not provided" })
+    reasons.push("experience_not_provided")
   }
 
-  // 3. Location check (non-binding — just flag if not willing to relocate and different city)
-  if (parsed.willingToRelocate === false && parsed.location && job?.city) {
+  // ── 3. Location check ──
+  if (parsed.location && job?.city) {
     const candidateCity = parsed.location.toLowerCase()
     const jobCity = String(job.city).toLowerCase()
-    if (candidateCity !== jobCity && !candidateCity.includes(jobCity) && !jobCity.includes(candidateCity)) {
-      reasons.push(`location_mismatch (candidate in ${parsed.location}, job in ${job.city}, not willing to relocate)`)
+    const sameCity = candidateCity === jobCity || candidateCity.includes(jobCity) || jobCity.includes(candidateCity)
+    if (sameCity) {
+      checks.push({ field: "location", verdict: "pass", detail: `Candidate in ${parsed.location}, job in ${job.city} — same city` })
+    } else if (parsed.willingToRelocate === true) {
+      checks.push({ field: "location", verdict: "pass", detail: `Candidate in ${parsed.location}, job in ${job.city} — willing to relocate` })
+    } else if (parsed.willingToRelocate === false) {
+      checks.push({ field: "location", verdict: "fail", detail: `Candidate in ${parsed.location}, job in ${job.city} — not willing to relocate` })
+      reasons.push(`location_mismatch (${parsed.location} → ${job.city}, not willing)`)
+    } else {
+      // Location different, relocate unknown → review
+      checks.push({ field: "location", verdict: "review", detail: `Candidate in ${parsed.location}, job in ${job.city} — relocation preference unknown` })
+      reasons.push(`location_unknown (${parsed.location} → ${job.city}, relocate unclear)`)
     }
+  } else if (!parsed.location && job?.city) {
+    checks.push({ field: "location", verdict: "review", detail: "Candidate location not provided" })
+    reasons.push("location_not_provided")
   }
 
-  // 4. Notice period check — if > 90 days and not immediate, flag
-  if (parsed.noticePeriod && parsed.noticePeriod !== "Immediate") {
-    const daysMatch = parsed.noticePeriod.match(/(\d+)/)
-    if (daysMatch) {
-      const days = parseInt(daysMatch[1])
-      if (days > 90) {
-        reasons.push(`notice_period_long (${parsed.noticePeriod})`)
+  // ── 4. Notice period check ──
+  if (parsed.noticePeriod) {
+    if (parsed.noticePeriod === "Immediate") {
+      checks.push({ field: "notice_period", verdict: "pass", detail: "Immediate availability" })
+    } else {
+      const daysMatch = parsed.noticePeriod.match(/(\d+)/)
+      if (daysMatch) {
+        const days = parseInt(daysMatch[1])
+        if (days <= 30) {
+          checks.push({ field: "notice_period", verdict: "pass", detail: `${parsed.noticePeriod} — acceptable` })
+        } else if (days <= 60) {
+          checks.push({ field: "notice_period", verdict: "pass", detail: `${parsed.noticePeriod} — within range` })
+        } else if (days <= 120) {
+          checks.push({ field: "notice_period", verdict: "review", detail: `${parsed.noticePeriod} — long notice period` })
+          reasons.push(`notice_period_long (${parsed.noticePeriod})`)
+        } else {
+          checks.push({ field: "notice_period", verdict: "fail", detail: `${parsed.noticePeriod} — excessively long` })
+          reasons.push(`notice_period_long (${parsed.noticePeriod})`)
+        }
+      } else {
+        checks.push({ field: "notice_period", verdict: "review", detail: `Could not parse notice period: "${parsed.noticePeriod}"` })
       }
     }
+  } else {
+    checks.push({ field: "notice_period", verdict: "review", detail: "Notice period not provided" })
+    reasons.push("notice_period_not_provided")
   }
 
-  if (reasons.length === 0) {
-    return { decision: "proceed", reason: "Meets basic criteria" }
+  // ── 5. Completeness check ──
+  const fieldsProvided = [
+    parsed.currentCtc,
+    parsed.expectedCtc,
+    parsed.totalExperience != null,
+    parsed.noticePeriod,
+    parsed.location,
+    parsed.willingToRelocate != null,
+    parsed.reasonForSwitching,
+  ].filter(Boolean).length
+  const totalFields = 7
+  if (fieldsProvided < 3) {
+    checks.push({ field: "completeness", verdict: "review", detail: `Only ${fieldsProvided}/${totalFields} fields provided — harder to evaluate` })
+    reasons.push(`incomplete_info (${fieldsProvided}/${totalFields} fields)`)
   }
 
-  // If any critical mismatch (salary or location), filter out
-  const hasCritical = reasons.some(r => r.startsWith("expected_ctc_") || r.startsWith("location_mismatch"))
-  return {
-    decision: hasCritical ? "filtered_out" : "proceed",
-    reason: reasons.join("; ")
+  // ── Overall decision ──
+  const hasFail = checks.some(c => c.verdict === "fail")
+  const hasReview = checks.some(c => c.verdict === "review")
+
+  if (hasFail) {
+    return { decision: "filtered_out", reason: reasons.join("; "), checks }
   }
+  if (hasReview) {
+    return { decision: "needs_review", reason: reasons.join("; ") || "Some fields need HR review", checks }
+  }
+  return { decision: "proceed", reason: "All checks passed", checks }
 }
 
 function extractCtcNumber(ctc: string): number | null {
@@ -429,11 +551,11 @@ export async function handleRejectionReason(
   }
 }
 
-// ── Send info request (extended or simple based on mode) ──
+// ── Send info request (always uses detailed template for 7-field collection) ──
 
 export async function sendInfoRequest(
   participantId: string,
-  mode: "simple" | "extended" = "simple"
+  mode: "simple" | "extended" = "extended"
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const { data: participant, error: fetchError } = await supabaseAdmin
@@ -458,35 +580,15 @@ export async function sendInfoRequest(
     }
 
     const whatsapp = getWhatsAppService()
-    const origin = participant.origin || "outbound"
 
-    let result
-    let templateName: string
-
-    if (mode === "extended") {
-      result = await whatsapp.sendDetailedInfoRequest({
-        phoneNumber: candidate.phone,
-        candidateName: candidate.name || "",
-        jobTitle: job?.title || "",
-        companyName: job?.client_name || ""
-      })
-      templateName = "detailed_info_request"
-    } else {
-      result = origin === "inbound"
-        ? await whatsapp.sendInboundInfoRequest({
-            phoneNumber: candidate.phone,
-            candidateName: candidate.name || "",
-            jobTitle: job?.title || "",
-            companyName: job?.client_name || ""
-          })
-        : await whatsapp.sendOutboundInfoRequest({
-            phoneNumber: candidate.phone,
-            candidateName: candidate.name || "",
-            jobTitle: job?.title || "",
-            companyName: job?.client_name || ""
-          })
-      templateName = origin === "inbound" ? "inbound_info_request" : "outbound_info_request"
-    }
+    // Always use the detailed template (7 fields) for both inbound and outbound
+    const result = await whatsapp.sendDetailedInfoRequest({
+      phoneNumber: candidate.phone,
+      candidateName: candidate.name || "",
+      jobTitle: job?.title || "",
+      companyName: job?.client_name || ""
+    })
+    const templateName = "detailed_info_request"
 
     if (result.success) {
       await supabaseAdmin

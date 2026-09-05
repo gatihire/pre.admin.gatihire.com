@@ -16,6 +16,7 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { PhoneScreeningResultsSheet } from "./phone-screening-results-sheet"
+import { PrescreenReviewModal, type ReviewCandidate } from "./prescreen-review-modal"
 import { CandidateActivityTimeline } from "./candidate-activity-timeline"
 import { CandidateTimeline } from "./candidate-timeline"
 import { CandidateMetricsBar } from "./candidate-metrics-bar"
@@ -23,7 +24,7 @@ import { RootCauseAnalytics } from "./root-cause-analytics"
 import {
   Loader2, User, MapPin, Briefcase, Eye, Sparkles, Mail, Phone, ChevronDown, ChevronUp,
   PhoneCall, PhoneOff, CheckCircle, CheckCheck, Check, Clock, UserX, Play, Save, Filter, MessageCircle, Send,
-  AlertCircle, RefreshCw, BrainCircuit,
+  AlertCircle, RefreshCw, BrainCircuit, ShieldCheck,
 } from "lucide-react"
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription,
@@ -63,7 +64,7 @@ interface Application {
 }
 
 type FilterValue = "all" | "inbound" | "outbound" | "database" | "board-app"
-type CallSubFilter = "all" | "pending" | "waiting" | "engaged" | "calling" | "done" | "failed" | "rejected" | "waitlist" | "on_hold" | "passed" | "move_next"
+type CallSubFilter = "all" | "pending" | "waiting" | "engaged" | "calling" | "done" | "failed" | "review" | "rejected" | "waitlist" | "on_hold" | "passed" | "move_next"
 
 interface CandidateCardProps {
   application: Application
@@ -83,6 +84,7 @@ interface CandidateCardProps {
   onSelect: (id: string) => void
   onViewProfile: (candidate: any, application?: Application, participant?: any, aiInfo?: { recommendation?: string; score?: number }) => void
   onViewResults?: (candidateId: string) => void
+  onReviewInfo?: () => void
   onStageChange: (applicationId: string, from: string, to: string, candidateName: string) => void
   onApplicationUpdated: (updated: Application) => void
   interviewEntry?: InterviewEntry
@@ -121,6 +123,7 @@ const CALL_SUB_SECTIONS = [
   { id: "pending", label: "Pending", hint: "Not yet contacted", icon: "clock" },
   { id: "waiting", label: "Waiting", hint: "WhatsApp sent or info requested — waiting for response", icon: "send" },
   { id: "engaged", label: "Engaged", hint: "Candidate replied or info collected — ready to call", icon: "message" },
+  { id: "review", label: "Review", hint: "AI prescreen flagged — needs HR decision before scheduling", icon: "shield" },
   { id: "calling", label: "Calling", hint: "AI call in progress or auto-retry scheduled", icon: "phone" },
   { id: "done", label: "Done", hint: "Screening complete — review results", icon: "check" },
   { id: "failed", label: "Failed", hint: "No answer / busy / disconnected — manual follow-up needed", icon: "alert" },
@@ -250,6 +253,9 @@ function callSubSection(participant: any): string {
   if (status === "whatsapp_sent" || delivery === "delivered" || delivery === "sent" || delivery === "read") return "waiting"
   if (whatsappSentAt) return "waiting"
 
+  // ── NEEDS REVIEW (AI prescreen flagged for HR) ──
+  if (status === "needs_review") return "review"
+
   // ── PENDING ──
   return "pending"
 }
@@ -267,6 +273,47 @@ const NEXT_ACTION_CONFIG: Record<string, { label: string; cta: string; icon: any
   offer: { label: "Offer pending — follow up with candidate", cta: "View Offer", icon: CheckCircle, color: "bg-green-50 border-green-200 text-green-800", action: "view_offer" },
   hired: null,
   rejected: null,
+}
+
+function buildReviewCandidate(participant: any, application: Application): ReviewCandidate {
+  const c = participant?.candidates || {}
+  const job = participant?.jobs || {}
+  const checks = participant?.prescreen_reason
+    ? participant.prescreen_reason.split("; ").map((r: string) => {
+        const [field, detail] = r.split(" (")
+        const detailClean = detail?.replace(/\)$/, "") || r
+        const isFail = r.includes("mismatch") || r.includes("insufficient") || r.includes("long") || r.includes("overqualified") || r.includes("below_range") || r.includes("above_range")
+        const isPass = r.includes("passed") || r.includes("within") || r.includes("same city") || r.includes("willing") || r.includes("acceptable")
+        return { field: field.replace(/_/g, " "), verdict: isFail ? "fail" as const : isPass ? "pass" as const : "review" as const, detail: detailClean }
+      })
+    : []
+
+  return {
+    participantId: participant?.id || "",
+    candidateId: application.candidate_id,
+    name: c.name || "Candidate",
+    currentRole: c.current_role || null,
+    currentCompany: c.current_company || null,
+    phone: c.phone || null,
+    email: c.email || null,
+    currentCtc: c.current_ctc || null,
+    expectedCtc: c.expected_ctc || null,
+    totalExperience: c.total_experience_years || null,
+    noticePeriod: c.notice_period || null,
+    location: c.location_preference || c.location || null,
+    willingToRelocate: c.willing_to_relocate ?? null,
+    reasonForSwitching: c.reason_for_switching || null,
+    aiPrescreenDecision: participant?.prescreen_decision || null,
+    aiPrescreenReason: participant?.prescreen_reason || null,
+    checks,
+    jobTitle: job.title || null,
+    jobSalaryMin: job.salary_min || null,
+    jobSalaryMax: job.salary_max || null,
+    jobExpMin: job.experience_min_years || null,
+    jobExpMax: job.experience_max_years || null,
+    jobCity: job.city || null,
+    infoReceivedAt: participant?.info_received_at || null,
+  }
 }
 
 function getActionForCard(application: Application, callStatus?: string, participant?: any): { label: string; cta: string; icon: any; color: string; action: string | null } | null {
@@ -310,6 +357,11 @@ function getActionForCard(application: Application, callStatus?: string, partici
       }
       return { label: "WhatsApp sent — waiting for candidate to respond", cta: "Waiting", icon: Send, color: "bg-amber-50 border-amber-200 text-amber-800", action: null }
     }
+
+    // REVIEW (AI prescreen flagged for HR)
+    if (callStatus === "review") {
+      return { label: "AI prescreen flagged — needs your review before scheduling", cta: "Review Info", icon: ShieldCheck, color: "bg-amber-50 border-amber-200 text-amber-800", action: "review_info" }
+    }
     
     // PENDING
     if (callStatus === "pending") return { label: "Not yet contacted — ready to start screening", cta: "Start Screening", icon: Play, color: "bg-zinc-50 border-zinc-200 text-zinc-800", action: "start_call" }
@@ -351,6 +403,11 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
   const [bulkBusy, setBulkBusy] = useState(false)
   const [bulkNudgeMode, setBulkNudgeMode] = useState<"call_now" | "whatsapp_first" | "info_first" | "extended_screening">("whatsapp_first")
   const [resultParticipantId, setResultParticipantId] = useState<string | null>(null)
+
+  // Prescreen review state
+  const [reviewCandidate, setReviewCandidate] = useState<ReviewCandidate | null>(null)
+  const [reviewList, setReviewList] = useState<ReviewCandidate[]>([])
+  const [reviewIndex, setReviewIndex] = useState(0)
 
   // Interview state
   const [interviewRounds, setInterviewRounds] = useState<InterviewRound[]>([])
@@ -531,7 +588,8 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
         return interviewSubSection(entry) === callSubFilter
       }
       if (activeStage !== "ai_screen" || callSubFilter === "all") return true
-      return (callStatusByCandidate[a.candidate_id] || "pending") === callSubFilter
+      const participant = participantDataByCandidate[a.candidate_id]
+      return callSubSection(participant) === callSubFilter
     })
     .sort((a, b) => {
       // Sort by fit_score descending (best first), then by applied_at descending
@@ -754,7 +812,10 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
             <div className="flex flex-wrap items-center gap-1.5">
               {CALL_SUB_SECTIONS.map((sub) => {
                 const count = (activeStage === "ai_screen" ? baseFiltered : applications.filter((a) => a.status === activeStage))
-                  .filter((a) => (callStatusByCandidate[a.candidate_id] || "pending") === sub.id).length
+                  .filter((a) => {
+                    const participant = participantDataByCandidate[a.candidate_id]
+                    return callSubSection(participant) === sub.id
+                  }).length
                 return (
                   <button
                     key={sub.id}
@@ -907,6 +968,51 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
                     </TooltipContent>
                   </Tooltip>
 
+                  {/* Bulk review buttons — only show when review candidates are selected */}
+                  {selectedApplications.some(a => callSubSection(participantDataByCandidate[a.candidate_id]) === "review") && (
+                    <>
+                      <div className="w-px h-5 bg-cyan-300 mx-0.5" />
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="sm"
+                            className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white gap-1"
+                            onClick={async () => {
+                              const reviewIds = selectedApplications
+                                .filter(a => callSubSection(participantDataByCandidate[a.candidate_id]) === "review")
+                                .map(a => participantDataByCandidate[a.candidate_id]?.id)
+                                .filter(Boolean)
+                              if (reviewIds.length === 0) return
+                              setBulkBusy(true)
+                              try {
+                                const res = await fetch("/api/phone-screening/review", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ actions: reviewIds.map((id: string) => ({ participantId: id, decision: "approved" })) }),
+                                })
+                                const data = await res.json()
+                                if (!res.ok) throw new Error(data.error || "Failed to approve")
+                                toast({ title: "Approved", description: data.message })
+                                setSelectedIds(new Set())
+                                fetchParticipants(); onRefresh()
+                              } catch (err: any) {
+                                toast({ title: "Failed", description: err.message, variant: "destructive" })
+                              } finally { setBulkBusy(false) }
+                            }}
+                            disabled={bulkBusy}
+                          >
+                            {bulkBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle className="h-3.5 w-3.5" />}
+                            Approve Selected
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="font-semibold">Bulk Approve</p>
+                          <p className="text-xs opacity-80">Approve all selected candidates awaiting HR review. Schedule links sent via WhatsApp.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </>
+                  )}
+
                   <div className="w-px h-5 bg-cyan-300 mx-0.5" />
 
                   <Select value={bulkStage} onValueChange={setBulkStage}>
@@ -971,6 +1077,19 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
                     onViewResults={(candidateId) => {
                       const pid = participantIdByCandidate[candidateId]
                       if (pid) setResultParticipantId(pid)
+                    }}
+                    onReviewInfo={() => {
+                      const participant = participantDataByCandidate[app.candidate_id]
+                      if (!participant) return
+                      const reviewData = buildReviewCandidate(participant, app)
+                      // Find all review candidates for navigation
+                      const allReview = filtered
+                        .filter((a) => callSubSection(participantDataByCandidate[a.candidate_id]) === "review")
+                        .map((a) => buildReviewCandidate(participantDataByCandidate[a.candidate_id], a))
+                      setReviewList(allReview)
+                      const idx = allReview.findIndex(r => r.participantId === reviewData.participantId)
+                      setReviewIndex(idx >= 0 ? idx : 0)
+                      setReviewCandidate(reviewData)
                     }}
                     onStageChange={handleStageChange}
                     onApplicationUpdated={onApplicationUpdated}
@@ -1084,6 +1203,17 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
           open={!!resultParticipantId}
           onOpenChange={(open) => { if (!open) setResultParticipantId(null) }}
         />
+
+        <PrescreenReviewModal
+          candidate={reviewCandidate}
+          open={!!reviewCandidate}
+          onClose={() => setReviewCandidate(null)}
+          onReviewed={() => { fetchParticipants(); onRefresh() }}
+          totalCount={reviewList.length}
+          currentIndex={reviewIndex}
+          onNext={() => { const next = reviewIndex + 1; if (next < reviewList.length) { setReviewIndex(next); setReviewCandidate(reviewList[next]) } }}
+          onPrev={() => { const prev = reviewIndex - 1; if (prev >= 0) { setReviewIndex(prev); setReviewCandidate(reviewList[prev]) } }}
+        />
       </div>
     </TooltipProvider>
   )
@@ -1093,7 +1223,7 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
    CANDIDATE CARD — Premium Redesign
    ═══════════════════════════════════════════════════════════════════ */
 
-function CandidateCard({ application, jobId, callStatus, participant, aiInfo, clientDecision, selected, isNew, fitScore, callNowBusy, nudgeBusy, onCallNow, onNudgeStart, onNudgeEnd, onSelect, onViewProfile, onViewResults, onStageChange, onApplicationUpdated, interviewEntry, interviewDraft, onInterviewUpdate, onInterviewDraftChange }: CandidateCardProps) {
+function CandidateCard({ application, jobId, callStatus, participant, aiInfo, clientDecision, selected, isNew, fitScore, callNowBusy, nudgeBusy, onCallNow, onNudgeStart, onNudgeEnd, onSelect, onViewProfile, onViewResults, onReviewInfo, onStageChange, onApplicationUpdated, interviewEntry, interviewDraft, onInterviewUpdate, onInterviewDraftChange }: CandidateCardProps) {
   const c = application.candidates
   const { toast } = useToast()
   const [notesDraft, setNotesDraft] = useState<string>(application.notes || "")
@@ -1171,6 +1301,7 @@ function CandidateCard({ application, jobId, callStatus, participant, aiInfo, cl
     else if (nextAction.action === "start_call") onCallNow?.()
     else if (nextAction.action === "retry_now") onCallNow?.()
     else if (nextAction.action === "manual_followup") toast({ title: "Manual follow-up required", description: "Please contact the candidate directly" })
+    else if (nextAction.action === "review_info") onReviewInfo?.()
   }
 
   return (

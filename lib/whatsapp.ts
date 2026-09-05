@@ -581,6 +581,31 @@ export class WhatsAppService {
       ]
     })
   }
+  // Flow 7: Info Review Pending (HR reviewing candidate profile)
+
+  async sendInfoReviewPending(params: {
+    phoneNumber: string
+    candidateName: string
+    jobTitle: string
+    companyName: string
+  }): Promise<SendMessageResult> {
+    const templateName = process.env.WHATSAPP_TEMPLATE_INFO_REVIEW_PENDING || "info_review_pending"
+    
+    return this.sendTemplateMessage({
+      to: params.phoneNumber,
+      templateName,
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.candidateName },
+            { type: "text", text: params.jobTitle },
+            { type: "text", text: params.companyName }
+          ]
+        }
+      ]
+    })
+  }
 }
 
 // Singleton instance

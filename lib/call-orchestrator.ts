@@ -325,30 +325,23 @@ export async function orchestrateScreening(input: OrchestrateScreeningInput): Pr
       continue
     }
 
-    // Info-first: send info request before scheduling call
+    // Info-first: send detailed info request (7 fields) for both inbound and outbound
     if (infoFirst) {
       const { userData, generatedQuestions, geminiPromptUsed } = await buildCallUserData(candidate, job, client, origin, participantId)
       const whatsapp = getWhatsAppService()
       
-      // Send appropriate template based on origin
-      const infoResult = origin === "inbound"
-        ? await whatsapp.sendInboundInfoRequest({
-            phoneNumber: candidate.phone as string,
-            candidateName: candidate.name || "",
-            jobTitle: job.title || "",
-            companyName: job.client_name || client?.name || "",
-          })
-        : await whatsapp.sendOutboundInfoRequest({
-            phoneNumber: candidate.phone as string,
-            candidateName: candidate.name || "",
-            jobTitle: job.title || "",
-            companyName: job.client_name || client?.name || "",
-          })
+      // Always use the detailed template (7 fields) for both inbound and outbound
+      const infoResult = await whatsapp.sendDetailedInfoRequest({
+        phoneNumber: candidate.phone as string,
+        candidateName: candidate.name || "",
+        jobTitle: job.title || "",
+        companyName: job.client_name || client?.name || "",
+      })
 
       if (infoResult.success) {
         const history = [{
           messageId: infoResult.messageId || null,
-          template: origin === "inbound" ? "inbound_info_request" : "outbound_info_request",
+          template: "detailed_info_request",
           sentAt: new Date().toISOString(),
           status: "sent",
         }]
@@ -359,7 +352,7 @@ export async function orchestrateScreening(input: OrchestrateScreeningInput): Pr
             whatsapp_message_id: infoResult.messageId || null,
             whatsapp_sent_at: new Date().toISOString(),
             whatsapp_delivery_status: "sent",
-            whatsapp_outbound_template: origin === "inbound" ? "inbound_info_request" : "outbound_info_request",
+            whatsapp_outbound_template: "detailed_info_request",
             whatsapp_history: history,
             call_payload_json: userData,
             generated_questions: generatedQuestions.join("\n"),
