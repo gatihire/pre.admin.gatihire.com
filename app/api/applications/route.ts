@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { supabase, supabaseAdmin } from "@/lib/supabase"
 import { getInternalAuthContext, hasPermission } from "@/lib/internal-auth"
 import { deriveOrigin } from "@/lib/origin"
+import { getOrAnalyzeFit } from "@/lib/candidate-fit"
 
 export async function GET(request: NextRequest) {
   const ctx = await getInternalAuthContext(request)
@@ -142,6 +143,15 @@ export async function POST(request: NextRequest) {
         metadata: { job_id, candidate_id, status: status || "applied" },
       })
       .then(() => {})
+
+    const [jobRes, candidateRes] = await Promise.all([
+      supabaseAdmin.from("jobs").select("id,title,industry,client_name,city,location,experience_min_years,experience_max_years,skills_must_have,skills_good_to_have,description").eq("id", job_id).maybeSingle(),
+      supabaseAdmin.from("candidates").select("id,current_role,current_company,total_experience,location,technical_skills,resume_text,summary").eq("id", candidate_id).maybeSingle(),
+    ])
+
+    if (jobRes.data && candidateRes.data) {
+      getOrAnalyzeFit(job_id, candidate_id, candidateRes.data, jobRes.data).catch(() => {})
+    }
 
     return NextResponse.json(data)
   } catch (error) {

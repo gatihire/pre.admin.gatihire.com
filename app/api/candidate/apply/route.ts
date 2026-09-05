@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase"
+import { getOrAnalyzeFit } from "@/lib/candidate-fit"
 
 export const runtime = "nodejs"
 
@@ -94,6 +95,15 @@ export async function POST(request: NextRequest) {
         metadata: { job_id: jobId, candidate_id: candidateId, source: "candidate_board" },
       })
       .then(() => {})
+
+    const [jobRes, candidateRes] = await Promise.all([
+      supabaseAdmin.from("jobs").select("id,title,industry,client_name,city,location,experience_min_years,experience_max_years,skills_must_have,skills_good_to_have,description").eq("id", jobId).maybeSingle(),
+      supabaseAdmin.from("candidates").select("id,current_role,current_company,total_experience,location,technical_skills,resume_text,summary").eq("id", candidateId).maybeSingle(),
+    ])
+
+    if (jobRes.data && candidateRes.data) {
+      getOrAnalyzeFit(jobId, candidateId, candidateRes.data, jobRes.data).catch(() => {})
+    }
 
     return NextResponse.json({ success: true })
   } catch (e: any) {
