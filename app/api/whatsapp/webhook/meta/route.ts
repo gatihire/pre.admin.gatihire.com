@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase"
 import { logger } from "@/lib/logger"
 import { handleInfoReply, handleDetailedInfoReply, handleRejectionReason, sendInfoRequest } from "@/lib/info-collector"
+import { scheduleBolnaCall } from "@/lib/scheduled-call"
 import crypto from "crypto"
 
 // Verify Meta webhook signature
@@ -139,7 +140,18 @@ async function handleInteractiveMessage(participant: any, interactive: any) {
           .eq("id", participant.id)
         
         // Send schedule options
-        // TODO: Send schedule_options template
+        {
+          const { getWhatsAppService } = await import("@/lib/whatsapp")
+          const whatsapp = getWhatsAppService()
+          const candidate = participant.candidates
+          if (candidate?.phone) {
+            await whatsapp.sendScheduleOptions({
+              phoneNumber: candidate.phone,
+              candidateName: candidate.name || "",
+              jobTitle: participant.jobs?.title || "",
+            })
+          }
+        }
         break
 
       case "not_interested":
@@ -212,7 +224,18 @@ async function handleInteractiveMessage(participant: any, interactive: any) {
           })
           .eq("id", participant.id)
         // Send schedule options
-        // TODO: Send schedule_options template
+        {
+          const { getWhatsAppService } = await import("@/lib/whatsapp")
+          const whatsapp = getWhatsAppService()
+          const candidate = participant.candidates
+          if (candidate?.phone) {
+            await whatsapp.sendScheduleOptions({
+              phoneNumber: candidate.phone,
+              candidateName: candidate.name || "",
+              jobTitle: participant.jobs?.title || "",
+            })
+          }
+        }
         break
 
       // Rejection reason buttons (from not_interested_reason template)
@@ -256,25 +279,41 @@ async function handleTextMessage(participant: any, text: any) {
 
   // Check if this is an info collection reply (contains numbers and possibly LPA, days, etc.)
   if (participant.status === "info_requested") {
-    // Check if this is a detailed info request (extended screening)
-    const screeningContext = participant.screening_context
-    const isExtended = screeningContext && participant.whatsapp_outbound_template === "detailed_info_request"
-    
-    if (isExtended) {
+    // Route based on screening_mode, not template name
+    const screeningMode = participant.screening_mode
+
+    if (screeningMode === "extended_screening" || screeningMode === "info_first") {
+      // Both modes use detailed info reply handler (with 7-field parsing + pre-screen for extended)
       const infoResult = await handleDetailedInfoReply(participant.id, text.body)
       if (infoResult.success) {
         logger.info("Detailed info reply parsed and saved", { 
           participantId: participant.id,
-          decision: infoResult.prescreen?.decision 
+          decision: infoResult.prescreen?.decision,
+          screeningMode
         })
         return
       }
     } else {
-      // Simple info reply (backward compatible)
-      const infoResult = await handleInfoReply(participant.id, text.body)
-      if (infoResult.success) {
-        logger.info("Info reply parsed and saved", { participantId: participant.id })
-        return
+      // Legacy: check template name for backward compatibility
+      const screeningContext = participant.screening_context
+      const isExtended = screeningContext && participant.whatsapp_outbound_template === "detailed_info_request"
+      
+      if (isExtended) {
+        const infoResult = await handleDetailedInfoReply(participant.id, text.body)
+        if (infoResult.success) {
+          logger.info("Detailed info reply parsed and saved", { 
+            participantId: participant.id,
+            decision: infoResult.prescreen?.decision 
+          })
+          return
+        }
+      } else {
+        // Simple info reply (backward compatible)
+        const infoResult = await handleInfoReply(participant.id, text.body)
+        if (infoResult.success) {
+          logger.info("Info reply parsed and saved", { participantId: participant.id })
+          return
+        }
       }
     }
     // If parsing failed, continue with normal text handling
@@ -340,7 +379,12 @@ async function scheduleCall(participant: any, delayMs: number) {
     scheduledTime 
   })
 
-  // TODO: Schedule via QStash
+  // Schedule via QStash
+  const delaySeconds = Math.max(0, Math.round(delayMs / 1000))
+  const result = await scheduleBolnaCall(participant.id, delaySeconds)
+  if (!result.scheduled) {
+    logger.error("Failed to schedule call via QStash", { participantId: participant.id, error: result.error })
+  }
 }
 
 async function handleStatusUpdate(status: any) {

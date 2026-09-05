@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase"
 import { getWhatsAppService } from "@/lib/whatsapp"
+import { scheduleBolnaCall } from "@/lib/scheduled-call"
 import { logger } from "@/lib/logger"
 
 export const runtime = "nodejs"
@@ -94,6 +95,24 @@ export async function POST(request: NextRequest) {
             expectedCtc: candidate?.expected_ctc || "Not provided",
             noticePeriod: candidate?.notice_period || "Not provided",
           })
+
+          // Auto-schedule AI call (1 minute delay so candidate sees confirmation first)
+          const callDelaySec = 60
+          const scheduled = await scheduleBolnaCall(participantId, callDelaySec)
+          if (scheduled.scheduled) {
+            await supabaseAdmin
+              .from("phone_screening_participants")
+              .update({
+                status: "call_scheduled",
+                scheduled_at: new Date(Date.now() + callDelaySec * 1000).toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", participantId)
+          } else {
+            logger.error("Failed to auto-schedule call after HR approve", {
+              participantId, candidateId: participant.candidate_id, error: scheduled.error
+            })
+          }
 
           logger.info("HR approved candidate after prescreen review", { participantId, candidateId: participant.candidate_id })
           results.push({ participantId, success: true })

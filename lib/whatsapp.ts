@@ -460,6 +460,26 @@ export class WhatsAppService {
     })
   }
 
+  async sendInfoReminder(params: {
+    phoneNumber: string
+    candidateName: string
+  }): Promise<SendMessageResult> {
+    const templateName = process.env.WHATSAPP_TEMPLATE_INFO_REMINDER || "info_reminder"
+    
+    return this.sendTemplateMessage({
+      to: params.phoneNumber,
+      templateName,
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.candidateName },
+          ]
+        }
+      ]
+    })
+  }
+
   async sendAiCallReassurance(params: {
     phoneNumber: string
     candidateName: string

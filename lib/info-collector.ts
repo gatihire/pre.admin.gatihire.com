@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase"
 import { getWhatsAppService } from "@/lib/whatsapp"
+import { scheduleBolnaCall } from "@/lib/scheduled-call"
 import { logger } from "@/lib/logger"
 
 // ── Parsed Info (extended) ──
@@ -233,7 +234,7 @@ export async function handleDetailedInfoReply(
     const { data: participant, error: fetchError } = await supabaseAdmin
       .from("phone_screening_participants")
       .select(`
-        id, status, job_id, candidate_id, origin, screening_context,
+        id, status, job_id, candidate_id, origin, screening_context, call_payload_json,
         candidates: candidate_id (id, name, phone),
         jobs: job_id (id, title, client_name, salary_min, salary_max, salary_type,
                        experience_min_years, experience_max_years, city, skills_must_have)
@@ -246,6 +247,58 @@ export async function handleDetailedInfoReply(
     }
 
     const parsed = parseDetailedInfoReply(replyText)
+    const fieldsProvided = [
+      parsed.currentCtc, parsed.expectedCtc, parsed.totalExperience != null,
+      parsed.noticePeriod, parsed.location, parsed.willingToRelocate != null, parsed.reasonForSwitching,
+    ].filter(Boolean).length
+
+    // Reply quality gate: if < 3 fields provided, send reminder (max 1 reminder)
+    if (fieldsProvided < 3) {
+      const reminderKey = "info_reminder_sent"
+      const alreadyReminded = participant.screening_context?.[reminderKey]
+
+      if (!alreadyReminded) {
+        const whatsapp = getWhatsAppService()
+        const candidate = participant.candidates as any
+        await whatsapp.sendInfoReminder({
+          phoneNumber: candidate.phone || "",
+          candidateName: candidate.name || "",
+        })
+
+        // Track reminder in screening_context
+        await supabaseAdmin
+          .from("phone_screening_participants")
+          .update({
+            screening_context: {
+              ...(participant.screening_context || {}),
+              [reminderKey]: true,
+            },
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", participantId)
+
+        logger.info("Info reply incomplete, reminder sent", {
+          participantId, candidateId: participant.candidate_id, fieldsProvided
+        })
+        return { success: true } // parsed but incomplete — reminder sent
+      }
+
+      // Already reminded and still incomplete → needs_review
+      await supabaseAdmin
+        .from("phone_screening_participants")
+        .update({
+          status: "needs_review",
+          info_received_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", participantId)
+
+      logger.info("Info reply incomplete after reminder, flagged for HR review", {
+        participantId, candidateId: participant.candidate_id, fieldsProvided
+      })
+      return { success: true }
+    }
+
     if (!parsed.currentCtc && !parsed.expectedCtc && !parsed.noticePeriod && !parsed.totalExperience) {
       return { success: false, error: "Could not parse info. Please share: CTC, expected CTC, experience, notice period, location, willing to relocate (yes/no), reason for switching" }
     }
@@ -329,7 +382,7 @@ export async function handleDetailedInfoReply(
         participantId, candidateId: participant.candidate_id, reason: prescreen.reason
       })
     } else {
-      // proceed — send info received confirmation with schedule buttons
+      // proceed — send info received confirmation AND auto-schedule AI call
       await whatsapp.sendInfoReceivedConfirm({
         phoneNumber: candidate.phone || "",
         candidateName: candidate.name || "",
@@ -337,9 +390,27 @@ export async function handleDetailedInfoReply(
         expectedCtc: parsed.expectedCtc || "Not provided",
         noticePeriod: parsed.noticePeriod || "Not provided"
       })
-      logger.info("Detailed info collected, proceeding to AI call", {
-        participantId, candidateId: participant.candidate_id
-      })
+
+      // Auto-schedule Bolna call (1 minute delay so candidate sees confirmation first)
+      const callDelaySec = 60
+      const scheduled = await scheduleBolnaCall(participantId, callDelaySec)
+      if (scheduled.scheduled) {
+        await supabaseAdmin
+          .from("phone_screening_participants")
+          .update({
+            status: "call_scheduled",
+            scheduled_at: new Date(Date.now() + callDelaySec * 1000).toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", participantId)
+        logger.info("Auto-scheduled AI call after info collection", {
+          participantId, candidateId: participant.candidate_id, delaySec: callDelaySec
+        })
+      } else {
+        logger.error("Failed to auto-schedule call after info collection", {
+          participantId, candidateId: participant.candidate_id, error: scheduled.error
+        })
+      }
     }
 
     return { success: true, parsed, prescreen }

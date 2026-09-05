@@ -16,6 +16,10 @@ import { logger } from "@/lib/logger"
 /** Delay before placing a call after the pre-call WhatsApp context (ms). */
 const PRE_CALL_DELAY_MS = Number(process.env.SCREENING_PRE_CALL_DELAY_MS) || 60_000
 
+/** Batch size for WhatsApp sends — delay between batches to avoid rate limits. */
+const WHATSAPP_BATCH_SIZE = 50
+const WHATSAPP_BATCH_DELAY_MS = 5_000
+
 export interface ScreeningCandidate {
   id: string
   name?: string | null
@@ -239,9 +243,16 @@ export async function orchestrateScreening(input: OrchestrateScreeningInput): Pr
   let nudgeSent = 0
   const errors: string[] = []
 
-  for (const candidate of validCandidates) {
+  for (let i = 0; i < validCandidates.length; i++) {
+    const candidate = validCandidates[i]
     const origin = originByCandidate.get(candidate.id) || "outbound"
     const participantId = participantByCandidate.get(candidate.id)
+
+    // Batch delay: pause between batches to avoid WhatsApp rate limits
+    if (i > 0 && i % WHATSAPP_BATCH_SIZE === 0) {
+      logger.info(`WhatsApp batch delay: pausing ${WHATSAPP_BATCH_DELAY_MS}ms after ${i} messages`)
+      await new Promise(resolve => setTimeout(resolve, WHATSAPP_BATCH_DELAY_MS))
+    }
 
     if (whatsappFirst) {
       const { userData, generatedQuestions, geminiPromptUsed } = await buildCallUserData(candidate, job, client, origin, participantId)
@@ -325,7 +336,7 @@ export async function orchestrateScreening(input: OrchestrateScreeningInput): Pr
       continue
     }
 
-    // Info-first: send detailed info request (7 fields) for both inbound and outbound
+      // Info-first: send detailed info request (7 fields) for both inbound and outbound
     if (infoFirst) {
       const { userData, generatedQuestions, geminiPromptUsed } = await buildCallUserData(candidate, job, client, origin, participantId)
       const whatsapp = getWhatsAppService()
@@ -349,6 +360,7 @@ export async function orchestrateScreening(input: OrchestrateScreeningInput): Pr
           .from("phone_screening_participants")
           .update({
             status: "info_requested",
+            screening_mode: "info_first",
             whatsapp_message_id: infoResult.messageId || null,
             whatsapp_sent_at: new Date().toISOString(),
             whatsapp_delivery_status: "sent",
@@ -411,6 +423,7 @@ export async function orchestrateScreening(input: OrchestrateScreeningInput): Pr
           .from("phone_screening_participants")
           .update({
             status: "info_requested",
+            screening_mode: "extended_screening",
             whatsapp_message_id: infoResult.messageId || null,
             whatsapp_sent_at: new Date().toISOString(),
             whatsapp_delivery_status: "sent",

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { BulkResumeParser } from '@/lib/bulk-resume-parser'
 import { getInternalAuthContext, hasPermission } from '@/lib/internal-auth'
+import { getOrAnalyzeFit } from '@/lib/candidate-fit'
+import { supabaseAdmin } from '@/lib/supabase'
+import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
   const ctx = await getInternalAuthContext(request)
@@ -10,6 +13,7 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
     const files = formData.getAll('files') as File[]
+    const jobId = formData.get('jobId') as string | null
     
     if (!files || files.length === 0) {
       return NextResponse.json(
@@ -54,6 +58,61 @@ export async function POST(request: NextRequest) {
       }
     )
 
+    // Auto-trigger fit analysis if jobId provided
+    let fitAnalysisResults: Record<string, unknown> = {}
+    if (jobId && result.candidateIds.length > 0) {
+      logger.info("Auto-triggering fit analysis after bulk parse", { jobId, candidateCount: result.candidateIds.length })
+
+      // Get job data
+      const { data: job } = await supabaseAdmin
+        .from("jobs")
+        .select(`
+          id, title, industry, client_name, city, location,
+          experience_min_years, experience_max_years,
+          skills_must_have, skills_good_to_have, description
+        `)
+        .eq("id", jobId)
+        .single()
+
+      if (job) {
+        // Get candidate data for parsed candidates
+        const { data: candidates } = await supabaseAdmin
+          .from("candidates")
+          .select("id,name,current_role,current_company,total_experience,location,technical_skills,resume_text,summary")
+          .in("id", result.candidateIds)
+
+        for (const candidate of candidates || []) {
+          try {
+            fitAnalysisResults[candidate.id] = await getOrAnalyzeFit(jobId, candidate.id, candidate, job)
+          } catch (err: any) {
+            logger.warn("Auto-fit failed for candidate after bulk parse", { candidateId: candidate.id, error: err.message })
+          }
+        }
+
+        // Ensure applications exist for these candidates
+        const candidateIds = candidates?.map(c => c.id) || []
+        for (const cid of candidateIds) {
+          const { data: existing } = await supabaseAdmin
+            .from("applications")
+            .select("id")
+            .eq("job_id", jobId)
+            .eq("candidate_id", cid)
+            .limit(1)
+
+          if (!existing || existing.length === 0) {
+            await supabaseAdmin
+              .from("applications")
+              .insert({ job_id: jobId, candidate_id: cid, status: "applied" })
+          }
+        }
+
+        logger.info("Auto-fit analysis complete after bulk parse", {
+          jobId,
+          analyzed: Object.keys(fitAnalysisResults).length
+        })
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: `Successfully processed ${result.successful} out of ${files.length} files`,
@@ -63,6 +122,7 @@ export async function POST(request: NextRequest) {
         failed: result.failed,
         candidateIds: result.candidateIds
       },
+      fitAnalysis: jobId ? fitAnalysisResults : undefined,
       costEstimate,
       errors: result.errors
     })
