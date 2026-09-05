@@ -1,87 +1,119 @@
 # WhatsApp Meta Templates — Complete Reference
 
-> All WhatsApp message templates for GatiHire AI Screening, configured directly via Meta WhatsApp Business API.
+> All WhatsApp message templates for GatiHire, configured directly via Meta WhatsApp Business API.
 
 ---
 
 ## Table of Contents
 
 1. [Template Inventory](#template-inventory)
-2. [Meta Business Suite Setup](#meta-business-suite-setup)
-3. [Template Details](#template-details)
-4. [Environment Variables](#environment-variables)
-5. [API Integration](#api-integration)
-6. [Flow Diagrams](#flow-diagrams)
-7. [Testing Guide](#testing-guide)
+2. [Flow 1: Quick Screening (Existing)](#flow-1-quick-screening-existing)
+3. [Flow 2: Info Collection + Screening (New)](#flow-2-info-collection--screening-new)
+4. [Template Details](#template-details)
+5. [Environment Variables](#environment-variables)
+6. [Pipeline Statuses](#pipeline-statuses)
 
 ---
 
 ## Template Inventory
 
-### Outbound Flow (HR reaches out to candidates)
+### Flow 1: Quick Screening (Existing)
 
-| # | Template Name | Category | When Sent | Parameters |
-|---|---|---|---|---|
-| 1 | `talent_outreach` | MARKETING | Initial outreach | candidate_name, job_title, company_name, location, salary |
-| 2 | `screening_invite` | UTILITY | After "Interested" reply | candidate_name, job_title, company_name |
-| 3 | `call_nudge` | UTILITY | Pre-call notification | candidate_name, job_title, company_name |
-| 4 | `tried_calling` | UTILITY | After call fails | candidate_name, job_title, company_name |
-| 5 | `missed_call_reschedule` | UTILITY | Reschedule options | candidate_name, job_title, company_name |
-| 6 | `reminder_nudge` | UTILITY | 4h silence follow-up | candidate_name, job_title, company_name |
+| # | Template Name | Category | When Sent |
+|---|---|---|---|
+| 1 | `talent_outreach` | MARKETING | Outbound initial |
+| 2 | `inbound_screening_invite` | UTILITY | Inbound initial |
+| 3 | `screening_invite` | UTILITY | After "Interested" |
+| 4 | `schedule_options` | UTILITY | Schedule call |
+| 5 | `call_nudge` | UTILITY | Pre-call notification |
+| 6 | `tried_calling` | UTILITY | After call fails |
+| 7 | `missed_call_reschedule` | UTILITY | Reschedule options |
+| 8 | `reminder_nudge` | UTILITY | 4h silence follow-up |
 
-### Inbound Flow (Candidate applies via board-app)
+### Flow 2: Info Collection + Screening (New)
 
-| # | Template Name | Category | When Sent | Parameters |
-|---|---|---|---|---|
-| 1 | `inbound_screening_invite` | UTILITY | Screening invite | candidate_name, job_title, company_name |
-| 2 | `schedule_options` | UTILITY | Schedule call | candidate_name, job_title |
-| 3 | `call_nudge` | UTILITY | Pre-call notification | candidate_name, job_title, company_name |
-| 4 | `tried_calling` | UTILITY | After call fails | candidate_name, job_title, company_name |
-| 5 | `missed_call_reschedule` | UTILITY | Reschedule options | candidate_name, job_title, company_name |
-| 6 | `reminder_nudge` | UTILITY | 4h silence follow-up | candidate_name, job_title, company_name |
+| # | Template Name | Category | When Sent |
+|---|---|---|---|
+| 9 | `outbound_info_request` | MARKETING | Outbound — collect basic info |
+| 10 | `inbound_info_request` | UTILITY | Inbound — collect basic info |
+| 11 | `info_received_confirm` | UTILITY | Info received, schedule call |
+| 12 | `ai_call_reassurance` | UTILITY | Before call — friendly note |
 
-### Flow Summary
+### Flow 3: Rejection Reason + Extended Screening (New)
 
-| Flow | Step 1 | Step 2 | Step 3 | Step 4+ |
-|------|--------|--------|--------|---------|
-| **Outbound** | `talent_outreach` → Interested? | `screening_invite` → Pick time | `call_nudge` → AI calls | `tried_calling` / `missed_call_reschedule` |
-| **Inbound** | `inbound_screening_invite` → Pick time | `call_nudge` → AI calls | `tried_calling` / `missed_call_reschedule` | `reminder_nudge` at 4h |
-
-**Shared Templates:**
-- `call_nudge` — Pre-call notification (both flows)
-- `tried_calling` — After call fails (both flows)
-- `missed_call_reschedule` — Reschedule options (both flows)
-- `reminder_nudge` — 4h silence follow-up (both flows)
+| # | Template Name | Category | When Sent |
+|---|---|---|---|
+| 13 | `not_interested_reason` | UTILITY | Candidate says "Not interested" — capture reason via 6 buttons |
+| 14 | `detailed_info_request` | UTILITY | Extended screening — collect full details (CTC, experience, location, relocation, switching reason) |
+| 15 | `screening_filtered_out` | UTILITY | Candidate filtered out after pre-screen (e.g., comp mismatch) |
+| 16 | `second_reminder_nudge` | UTILITY | Second nudge when max_call_attempts > 2 |
 
 ---
 
-## Meta Business Suite Setup
+## Flow 1: Quick Screening (Existing)
 
-### Access WhatsApp Manager
+### Outbound
+```
+talent_outreach → [Interested] → screening_invite → Pick time → call_nudge → AI call
+```
 
-1. Go to: `https://business.facebook.com/latest/whatsapp_manager/overview/?asset_id=2347186219423427`
-2. Navigate to **Message Templates** → **Create Template**
+### Inbound
+```
+inbound_screening_invite → Pick time → call_nudge → AI call
+```
 
-### Create Templates
+**When to use:** HR wants to quickly reach out and schedule calls without collecting extra info.
 
-For each template:
+---
 
-1. Click **Create Template**
-2. Enter template name (lowercase with underscores, max 512 chars)
-3. Select category:
-   - **MARKETING**: For promotional messages (outreach)
-   - **UTILITY**: For transactional messages (screening, notifications)
-4. Add body text with `{{1}}`, `{{2}}`, etc.
-5. Add quick reply buttons (if applicable)
-6. Add example values for each variable
-7. Submit for review
+## Flow 2: Info Collection + Screening (New)
 
-### Approval Process
+### Outbound
+```
+1. talent_outreach → [Interested]
+2. outbound_info_request → "Please share CTC, Expected, Notice Period"
+3. Candidate replies → info_received_confirm → "Thanks! Let's schedule"
+4. Candidate picks time → ai_call_reassurance → "Our team will call you"
+5. call_nudge → AI call placed
+```
 
-- Meta reviews templates (usually 24-48 hours)
-- Status will be `PENDING` → `APPROVED` or `REJECTED`
-- Only `APPROVED` templates can be sent
-- Monitor status via WhatsApp Manager → Message Templates
+### Inbound
+```
+1. inbound_screening_invite → [Interested]
+2. inbound_info_request → "Please share CTC, Expected, Notice Period"
+3. Candidate replies → info_received_confirm → "Thanks! Let's schedule"
+4. Candidate picks time → ai_call_reassurance → "Our team will call you"
+5. call_nudge → AI call placed
+```
+
+**When to use:** HR wants to collect basic info (CTC, notice period) before scheduling the AI call. Better for bulk uploads where HR wants to filter candidates before calls.
+
+---
+
+## Flow 3: Rejection Reason + Extended Screening (New)
+
+### Rejection Reason Flow
+```
+1. Candidate clicks [Not Interested]
+2. not_interested_reason → 6 buttons: Not Looking / Comp Mismatch / Location / Already Placed / Role Not Relevant / Other
+3. Candidate picks reason → rejection_reason captured in DB
+```
+
+### Extended Screening Flow
+```
+1. Admin selects "Extended Screening" mode
+2. detailed_info_request → "Please share: CTC, Expected CTC, Experience, Notice Period, Current City, Willing to Relocate (yes/no), Reason for Switching"
+3. Candidate replies in ONE message
+4. info-collector parses reply + pre-screening evaluation:
+   - Salary range check (±20% of job range)
+   - Experience range check (70%-150% of job range)
+   - Location mismatch check (if not willing to relocate)
+   - Notice period check (>90 days flagged)
+5. If filtered out → screening_filtered_out sent with reason
+6. If proceeds → info_received_confirm → schedule AI call
+```
+
+**When to use:** HR wants maximum efficiency — collect all info upfront, pre-screen automatically, only spend AI call budget on qualified candidates.
 
 ---
 
@@ -91,9 +123,7 @@ For each template:
 
 **Category:** MARKETING
 
-**Purpose:** HR reaches out to candidates — we already have their resume, just need to know if interested
-
-**Template Name:** `talent_outreach`
+**Purpose:** HR reaches out to candidates — we already have their resume
 
 **Body:**
 ```
@@ -110,478 +140,17 @@ If this sounds interesting, let us know and we can schedule a quick screening ca
 Would you like to know more?
 ```
 
-**Variables:**
-| Index | Name | Type | Example |
-|-------|------|------|---------|
-| `{{1}}` | candidate_name | text | Rahul Sharma |
-| `{{2}}` | job_title | text | AI Engineer |
-| `{{3}}` | company_name | text | TechCorp India |
-| `{{4}}` | location | text | Bangalore, India |
-| `{{5}}` | salary | text | 25-35 LPA |
+**Variables:** candidate_name, job_title, company_name, location, salary
 
-**Buttons:**
-- Custom: `[Interested]` (quick reply)
-- Custom: `[Not Interested]` (quick reply)
-
-**Tags:** `["ai_outreach", "job_recruitment"]`
-
-**Meta Template API Payload:**
-```json
-{
-  "name": "talent_outreach",
-  "category": "MARKETING",
-  "language": "en",
-  "components": [
-    {
-      "type": "BODY",
-      "text": "Hi {{1}},\n\nWe came across your profile and think you would be a great fit for:\n\n{{2}} at {{3}}\nLocation: {{4}}\nSalary: {{5}}\n\nIf this sounds interesting, let us know and we can schedule a quick screening call.\n\nWould you like to know more?",
-      "example": {
-        "body_text": [
-          ["Rahul Sharma", "AI Engineer", "TechCorp India", "Bangalore, India", "25-35 LPA"]
-        ]
-      }
-    },
-    {
-      "type": "BUTTONS",
-      "buttons": [
-        {
-          "type": "QUICK_REPLY",
-          "text": "Interested"
-        },
-        {
-          "type": "QUICK_REPLY",
-          "text": "Not Interested"
-        }
-      ]
-    }
-  ]
-}
-```
+**Buttons:** `[Interested]` `[Not Interested]`
 
 ---
 
-### 2. Screening Invite (`screening_invite`)
+### 2. Inbound Screening Invite (`inbound_screening_invite`)
 
 **Category:** UTILITY
 
-**Purpose:** After outbound candidate says "Interested" — schedule screening call
-
-**Template Name:** `screening_invite`
-
-**Body:**
-```
-Great, {{1}}!
-
-Let us schedule your screening call for the {{2}} position at {{3}}.
-
-Please select a convenient time below.
-```
-
-**Variables:**
-| Index | Name | Type | Example |
-|-------|------|------|---------|
-| `{{1}}` | candidate_name | text | Priya Patel |
-| `{{2}}` | job_title | text | Full Stack Developer |
-| `{{3}}` | company_name | text | StartupXYZ |
-
-**Buttons:**
-- Custom: `[Call Now]` (quick reply)
-- Custom: `[In 10 min]` (quick reply)
-- Custom: `[In 30 min]` (quick reply)
-- Custom: `[Today Evening]` (quick reply)
-- Custom: `[Custom Time]` (quick reply)
-
-**Tags:** `["ai_screening", "outbound"]`
-
-**Meta Template API Payload:**
-```json
-{
-  "name": "screening_invite",
-  "category": "UTILITY",
-  "language": "en",
-  "components": [
-    {
-      "type": "BODY",
-      "text": "Great, {{1}}!\n\nLet us schedule your screening call for the {{2}} position at {{3}}.\n\nPlease select a convenient time below.",
-      "example": {
-        "body_text": [
-          ["Priya Patel", "Full Stack Developer", "StartupXYZ"]
-        ]
-      }
-    },
-    {
-      "type": "BUTTONS",
-      "buttons": [
-        {
-          "type": "QUICK_REPLY",
-          "text": "Call Now"
-        },
-        {
-          "type": "QUICK_REPLY",
-          "text": "In 10 min"
-        },
-        {
-          "type": "QUICK_REPLY",
-          "text": "In 30 min"
-        },
-        {
-          "type": "QUICK_REPLY",
-          "text": "Today Evening"
-        },
-        {
-          "type": "QUICK_REPLY",
-          "text": "Custom Time"
-        }
-      ]
-    }
-  ]
-}
-```
-
----
-
-### 3. Schedule Options (`schedule_options`)
-
-**Category:** UTILITY
-
-**Purpose:** After candidate says "Interested"
-
-**Template Name:** `schedule_options`
-
-**Body:**
-```
-Great, {{1}}!
-
-Let us schedule your screening call for the {{2}} position.
-
-Please select a convenient time below.
-```
-
-**Variables:**
-| Index | Name | Type | Example |
-|-------|------|------|---------|
-| `{{1}}` | candidate_name | text | Amit Kumar |
-| `{{2}}` | job_title | text | Backend Engineer |
-
-**Buttons:**
-- Custom: `[Call Now]` (quick reply)
-- Custom: `[In 10 min]` (quick reply)
-- Custom: `[In 30 min]` (quick reply)
-- Custom: `[Today Evening]` (quick reply)
-
-**Tags:** `["ai_screening", "schedule"]`
-
-**Meta Template API Payload:**
-```json
-{
-  "name": "schedule_options",
-  "category": "UTILITY",
-  "language": "en",
-  "components": [
-    {
-      "type": "BODY",
-      "text": "Great, {{1}}!\n\nLet us schedule your screening call for the {{2}} position.\n\nPlease select a convenient time below.",
-      "example": {
-        "body_text": [
-          ["Amit Kumar", "Backend Engineer"]
-        ]
-      }
-    },
-    {
-      "type": "BUTTONS",
-      "buttons": [
-        {
-          "type": "QUICK_REPLY",
-          "text": "Call Now"
-        },
-        {
-          "type": "QUICK_REPLY",
-          "text": "In 10 min"
-        },
-        {
-          "type": "QUICK_REPLY",
-          "text": "In 30 min"
-        },
-        {
-          "type": "QUICK_REPLY",
-          "text": "Today Evening"
-        }
-      ]
-    }
-  ]
-}
-```
-
----
-
-### 4. Call Nudge (`call_nudge`)
-
-**Category:** UTILITY
-
-**Purpose:** Pre-call notification (informational)
-
-**Template Name:** `call_nudge`
-
-**Body:**
-```
-Hi {{1}},
-
-This is a reminder that our AI assistant will call you shortly for your screening regarding the {{2}} position at {{3}}.
-
-The call will last approximately 5-10 minutes. Please answer when we call.
-```
-
-**Variables:**
-| Index | Name | Type | Example |
-|-------|------|------|---------|
-| `{{1}}` | candidate_name | text | Sneha Gupta |
-| `{{2}}` | job_title | text | Data Scientist |
-| `{{3}}` | company_name | text | DataCo |
-
-**Buttons:** None (informational only)
-
-**Tags:** `["ai_call", "nudge"]`
-
-**Meta Template API Payload:**
-```json
-{
-  "name": "call_nudge",
-  "category": "UTILITY",
-  "language": "en",
-  "components": [
-    {
-      "type": "BODY",
-      "text": "Hi {{1}},\n\nThis is a reminder that our AI assistant will call you shortly for your screening regarding the {{2}} position at {{3}}.\n\nThe call will last approximately 5-10 minutes. Please answer when we call.",
-      "example": {
-        "body_text": [
-          ["Sneha Gupta", "Data Scientist", "DataCo"]
-        ]
-      }
-    }
-  ]
-}
-```
-
----
-
-### 5. Tried Calling (`tried_calling`)
-
-**Category:** UTILITY
-
-**Purpose:** After call fails — retry notification
-
-**Template Name:** `tried_calling`
-
-**Body:**
-```
-Hi {{1}},
-
-We attempted to call you regarding the {{2}} position at {{3}}, but were unable to connect.
-
-Please select a convenient time for us to try again, or reply with your preferred time.
-```
-
-**Variables:**
-| Index | Name | Type | Example |
-|-------|------|------|---------|
-| `{{1}}` | candidate_name | text | Vikram Singh |
-| `{{2}}` | job_title | text | DevOps Engineer |
-| `{{3}}` | company_name | text | CloudFirst |
-
-**Buttons:**
-- Custom: `[Call Now]` (quick reply)
-- Custom: `[In 10 min]` (quick reply)
-- Custom: `[In 1 hour]` (quick reply)
-
-**Tags:** `["ai_call", "retry"]`
-
-**Meta Template API Payload:**
-```json
-{
-  "name": "tried_calling",
-  "category": "UTILITY",
-  "language": "en",
-  "components": [
-    {
-      "type": "BODY",
-      "text": "Hi {{1}},\n\nWe attempted to call you regarding the {{2}} position at {{3}}, but were unable to connect.\n\nPlease select a convenient time for us to try again, or reply with your preferred time.",
-      "example": {
-        "body_text": [
-          ["Vikram Singh", "DevOps Engineer", "CloudFirst"]
-        ]
-      }
-    },
-    {
-      "type": "BUTTONS",
-      "buttons": [
-        {
-          "type": "QUICK_REPLY",
-          "text": "Call Now"
-        },
-        {
-          "type": "QUICK_REPLY",
-          "text": "In 10 min"
-        },
-        {
-          "type": "QUICK_REPLY",
-          "text": "In 1 hour"
-        }
-      ]
-    }
-  ]
-}
-```
-
----
-
-### 6. Missed Call Reschedule (`missed_call_reschedule`)
-
-**Category:** UTILITY
-
-**Purpose:** After Bolna call fails — reschedule options
-
-**Template Name:** `missed_call_reschedule`
-
-**Body:**
-```
-Hi {{1}},
-
-We missed you for the {{2}} screening at {{3}}.
-
-Please select a convenient time to reschedule, or reply with your preferred time.
-```
-
-**Variables:**
-| Index | Name | Type | Example |
-|-------|------|------|---------|
-| `{{1}}` | candidate_name | text | Neha Reddy |
-| `{{2}}` | job_title | text | Product Manager |
-| `{{3}}` | company_name | text | InnovateInc |
-
-**Buttons:**
-- Custom: `[Call Now]` (quick reply)
-- Custom: `[In 10 min]` (quick reply)
-- Custom: `[In 1 hour]` (quick reply)
-- Custom: `[Tomorrow Morning]` (quick reply)
-
-**Tags:** `["ai_call", "reschedule"]`
-
-**Meta Template API Payload:**
-```json
-{
-  "name": "missed_call_reschedule",
-  "category": "UTILITY",
-  "language": "en",
-  "components": [
-    {
-      "type": "BODY",
-      "text": "Hi {{1}},\n\nWe missed you for the {{2}} screening at {{3}}.\n\nPlease select a convenient time to reschedule, or reply with your preferred time.",
-      "example": {
-        "body_text": [
-          ["Neha Reddy", "Product Manager", "InnovateInc"]
-        ]
-      }
-    },
-    {
-      "type": "BUTTONS",
-      "buttons": [
-        {
-          "type": "QUICK_REPLY",
-          "text": "Call Now"
-        },
-        {
-          "type": "QUICK_REPLY",
-          "text": "In 10 min"
-        },
-        {
-          "type": "QUICK_REPLY",
-          "text": "In 1 hour"
-        },
-        {
-          "type": "QUICK_REPLY",
-          "text": "Tomorrow Morning"
-        }
-      ]
-    }
-  ]
-}
-```
-
----
-
-### 7. Reminder Nudge (`reminder_nudge`)
-
-**Category:** UTILITY
-
-**Purpose:** 4 hours silence after outreach — gentle reminder
-
-**Template Name:** `reminder_nudge`
-
-**Body:**
-```
-Hi {{1}},
-
-Following up regarding the {{2}} position at {{3}} in {{4}}.
-
-If you are interested, please reply here or select an option below.
-```
-
-**Variables:**
-| Index | Name | Type | Example |
-|-------|------|------|---------|
-| `{{1}}` | candidate_name | text | Rohan Mehta |
-| `{{2}}` | job_title | text | Frontend Developer |
-| `{{3}}` | company_name | text | WebSolutions |
-| `{{4}}` | location | text | Mumbai, India |
-
-**Buttons:**
-- Custom: `[Interested]` (quick reply)
-- Custom: `[Not Interested]` (quick reply)
-
-**Tags:** `["ai_outreach", "reminder"]`
-
-**Meta Template API Payload:**
-```json
-{
-  "name": "reminder_nudge",
-  "category": "UTILITY",
-  "language": "en",
-  "components": [
-    {
-      "type": "BODY",
-      "text": "Hi {{1}},\n\nFollowing up regarding the {{2}} position at {{3}} in {{4}}.\n\nIf you are interested, please reply here or select an option below.",
-      "example": {
-        "body_text": [
-          ["Rohan Mehta", "Frontend Developer", "WebSolutions", "Mumbai, India"]
-        ]
-      }
-    },
-    {
-      "type": "BUTTONS",
-      "buttons": [
-        {
-          "type": "QUICK_REPLY",
-          "text": "Interested"
-        },
-        {
-          "type": "QUICK_REPLY",
-          "text": "Not Interested"
-        }
-      ]
-    }
-  ]
-}
-```
-
----
-
-### 8. Inbound Screening Invite (`inbound_screening_invite`)
-
-**Category:** UTILITY
-
-**Purpose:** Candidate applied via board-app — invite them for screening call
-
-**Template Name:** `inbound_screening_invite`
+**Purpose:** Candidate applied via board-app — invite for screening
 
 **Body:**
 ```
@@ -594,337 +163,437 @@ We would like to schedule a brief screening call to discuss your experience and 
 When would be a good time for you?
 ```
 
-**Variables:**
-| Index | Name | Type | Example |
-|-------|------|------|---------|
-| `{{1}}` | candidate_name | text | Karan Joshi |
-| `{{2}}` | job_title | text | ML Engineer |
-| `{{3}}` | company_name | text | AI Labs |
+**Variables:** candidate_name, job_title, company_name
 
-**Buttons:**
-- Custom: `[Call Now]` (quick reply)
-- Custom: `[In 10 min]` (quick reply)
-- Custom: `[In 30 min]` (quick reply)
-- Custom: `[Today Evening]` (quick reply)
-- Custom: `[Custom Time]` (quick reply)
+**Buttons:** `[Call Now]` `[In 10 min]` `[In 30 min]` `[Today Evening]` `[Custom Time]`
 
-**Tags:** `["ai_screening", "inbound"]`
+---
 
-**Meta Template API Payload:**
-```json
-{
-  "name": "inbound_screening_invite",
-  "category": "UTILITY",
-  "language": "en",
-  "components": [
-    {
-      "type": "BODY",
-      "text": "Hi {{1}},\n\nThank you for applying for {{2}} at {{3}}.\n\nWe would like to schedule a brief screening call to discuss your experience and the role. The call will take about 5-10 minutes.\n\nWhen would be a good time for you?",
-      "example": {
-        "body_text": [
-          ["Karan Joshi", "ML Engineer", "AI Labs"]
-        ]
-      }
-    },
-    {
-      "type": "BUTTONS",
-      "buttons": [
-        {
-          "type": "QUICK_REPLY",
-          "text": "Call Now"
-        },
-        {
-          "type": "QUICK_REPLY",
-          "text": "In 10 min"
-        },
-        {
-          "type": "QUICK_REPLY",
-          "text": "In 30 min"
-        },
-        {
-          "type": "QUICK_REPLY",
-          "text": "Today Evening"
-        },
-        {
-          "type": "QUICK_REPLY",
-          "text": "Custom Time"
-        }
-      ]
-    }
-  ]
-}
+### 3. Screening Invite (`screening_invite`)
+
+**Category:** UTILITY
+
+**Purpose:** After outbound candidate says "Interested"
+
+**Body:**
 ```
+Great, {{1}}!
+
+Let us schedule your screening call for the {{2}} position at {{3}}.
+
+Please select a convenient time below.
+```
+
+**Variables:** candidate_name, job_title, company_name
+
+**Buttons:** `[Call Now]` `[In 10 min]` `[In 30 min]` `[Today Evening]` `[Custom Time]`
+
+---
+
+### 4. Schedule Options (`schedule_options`)
+
+**Category:** UTILITY
+
+**Purpose:** After inbound candidate picks time
+
+**Body:**
+```
+Great, {{1}}!
+
+Let us schedule your screening call for the {{2}} position.
+
+Please select a convenient time below.
+```
+
+**Variables:** candidate_name, job_title
+
+**Buttons:** `[Call Now]` `[In 10 min]` `[In 30 min]` `[Today Evening]`
+
+---
+
+### 5. Call Nudge (`call_nudge`)
+
+**Category:** UTILITY
+
+**Purpose:** Pre-call notification
+
+**Body:**
+```
+Hi {{1}},
+
+This is a reminder that our team will call you shortly for your screening regarding the {{2}} position at {{3}}.
+
+The call will last approximately 5-10 minutes. Please answer when we call.
+```
+
+**Variables:** candidate_name, job_title, company_name
+
+**Buttons:** None (informational only)
+
+---
+
+### 6. Tried Calling (`tried_calling`)
+
+**Category:** UTILITY
+
+**Purpose:** After call fails — retry notification
+
+**Body:**
+```
+Hi {{1}},
+
+We attempted to call you regarding the {{2}} position at {{3}}, but were unable to connect.
+
+Please select a convenient time for us to try again, or reply with your preferred time.
+```
+
+**Variables:** candidate_name, job_title, company_name
+
+**Buttons:** `[Call Now]` `[In 10 min]` `[In 1 hour]`
+
+---
+
+### 7. Missed Call Reschedule (`missed_call_reschedule`)
+
+**Category:** UTILITY
+
+**Purpose:** Reschedule after missed call
+
+**Body:**
+```
+Hi {{1}},
+
+We missed you for the {{2}} screening at {{3}}.
+
+Please select a convenient time to reschedule, or reply with your preferred time.
+```
+
+**Variables:** candidate_name, job_title, company_name
+
+**Buttons:** `[Call Now]` `[In 10 min]` `[In 1 hour]` `[Tomorrow Morning]`
+
+---
+
+### 8. Reminder Nudge (`reminder_nudge`)
+
+**Category:** UTILITY
+
+**Purpose:** 4h silence follow-up
+
+**Body:**
+```
+Hi {{1}},
+
+Following up regarding the {{2}} position at {{3}}.
+
+If you are interested, please reply here or select an option below.
+```
+
+**Variables:** candidate_name, job_title, company_name
+
+**Buttons:** `[Interested]` `[Not Interested]`
+
+---
+
+### 9. Outbound Info Request (`outbound_info_request`)
+
+**Category:** MARKETING
+
+**Purpose:** Collect basic info from outbound candidates before screening call
+
+**Body:**
+```
+Hi {{1}},
+
+We reached out to you about the {{2}} role at {{3}}.
+
+Before we schedule your screening call, could you share a few quick details? This helps us understand your fit better.
+
+Please reply with:
+1. Current CTC (annual)
+2. Expected CTC (annual)
+3. Notice period (days)
+
+Example: "8 LPA, 12 LPA, 30 days"
+```
+
+**Variables:** candidate_name, job_title, company_name
+
+**Buttons:** `[Provide Details]` `[Skip — Schedule Call]`
+
+---
+
+### 10. Inbound Info Request (`inbound_info_request`)
+
+**Category:** UTILITY
+
+**Purpose:** Collect basic info from inbound candidates before screening call
+
+**Body:**
+```
+Hi {{1}},
+
+Thank you for applying for {{2}} at {{3}}.
+
+Before we schedule your screening call, could you share a few quick details? This helps us understand your fit better.
+
+Please reply with:
+1. Current CTC (annual)
+2. Expected CTC (annual)
+3. Notice period (days)
+
+Example: "8 LPA, 12 LPA, 30 days"
+```
+
+**Variables:** candidate_name, job_title, company_name
+
+**Buttons:** `[Provide Details]` `[Skip — Schedule Call]`
+
+---
+
+### 11. Info Received Confirm (`info_received_confirm`)
+
+**Category:** UTILITY
+
+**Purpose:** Confirm info received, ask for availability
+
+**Body:**
+```
+Hi {{1}},
+
+Thank you! We have received your details:
+
+- Current CTC: {{2}}
+- Expected CTC: {{3}}
+- Notice Period: {{4}}
+
+Now let us schedule your screening call. It is a quick 5-10 minute chat about your experience.
+
+When would be a good time?
+```
+
+**Variables:** candidate_name, current_ctc, expected_ctc, notice_period
+
+**Buttons:** `[Call Now]` `[In 10 min]` `[In 30 min]` `[Today Evening]`
+
+---
+
+### 12. AI Call Reassurance (`ai_call_reassurance`)
+
+**Category:** UTILITY
+
+**Purpose:** Reassure candidate before screening call
+
+**Body:**
+```
+Hi {{1}},
+
+Just a heads up — your screening call for {{2}} at {{3}} is coming up.
+
+Quick note: Our team will ask you a few questions about your experience. It is casual and conversational, not a test. Just be yourself and share your experience so far.
+
+See you soon!
+```
+
+**Variables:** candidate_name, job_title, company_name
+
+**Buttons:** None (informational only)
+
+---
+
+### 13. Not Interested Reason (`not_interested_reason`)
+
+**Category:** UTILITY
+
+**Purpose:** Capture why candidate is not interested via 6 quick-reply buttons
+
+**Body:**
+```
+Hi {{1}},
+
+We understand. Could you let us know the reason so we can improve our outreach?
+
+Pick one:
+```
+
+**Variables:**
+| Position | Name | Example |
+|----------|------|---------|
+| `{{1}}` | `candidate_name` | "Rahul" |
+
+**Buttons (6 quick-reply):**
+1. Not Looking to Switch (`reject_not_looking`)
+2. Compensation Mismatch (`reject_comp_mismatch`)
+3. Location Issue (`reject_location`)
+4. Already Placed (`reject_placed`)
+5. Role Not Relevant (`reject_role_not_relevant`)
+6. Other (`reject_other`)
+
+**Code:** `sendNotInterestedReason({ phoneNumber, candidateName })`
+
+---
+
+### 14. Detailed Info Request (`detailed_info_request`)
+
+**Category:** UTILITY
+
+**Purpose:** Collect full screening details in ONE reply for pre-screening
+
+**Body:**
+```
+Hi {{1}},
+
+Thank you for your interest in {{2}} at {{3}}.
+
+To help us match you better, please share the following in ONE reply:
+
+1. Current CTC
+2. Expected CTC
+3. Total experience (years)
+4. Notice period
+5. Current city
+6. Willing to relocate? (yes/no)
+7. Reason for switching
+
+Example: "8 LPA, 12 LPA, 5 years, 30 days, Mumbai, yes, better growth"
+```
+
+**Variables:**
+| Position | Name | Example |
+|----------|------|---------|
+| `{{1}}` | `candidate_name` | "Rahul" |
+| `{{2}}` | `job_title` | "Operations Manager" |
+| `{{3}}` | `company_name` | "SureShip" |
+
+**Buttons:** None (free-text reply)
+
+**Code:** `sendDetailedInfoRequest({ phoneNumber, candidateName, jobTitle, companyName })`
+
+---
+
+### 15. Screening Filtered Out (`screening_filtered_out`)
+
+**Category:** UTILITY
+
+**Purpose:** Inform candidate they didn't pass pre-screening
+
+**Body:**
+```
+Hi {{1}},
+
+Thank you for sharing your details. After review, we feel this role may not be the best fit at this time.
+
+Reason: {{2}}
+
+We will keep your profile for future opportunities. All the best!
+```
+
+**Variables:**
+| Position | Name | Example |
+|----------|------|---------|
+| `{{1}}` | `candidate_name` | "Rahul" |
+| `{{2}}` | `reason` | "Expected CTC above range" |
+
+**Buttons:** None (informational only)
+
+**Code:** `sendScreeningFilteredOut({ phoneNumber, candidateName, reason })`
+
+---
+
+### 16. Second Reminder Nudge (`second_reminder_nudge`)
+
+**Category:** UTILITY
+
+**Purpose:** Second nudge when max_call_attempts > 2
+
+**Body:**
+```
+Hi {{1}},
+
+Just a quick reminder about the {{2}} opportunity at {{3}}.
+
+If you are still interested, please reply and we will connect you with our team.
+
+Looking forward to hearing from you!
+```
+
+**Variables:**
+| Position | Name | Example |
+|----------|------|---------|
+| `{{1}}` | `candidate_name` | "Rahul" |
+| `{{2}}` | `job_title` | "Operations Manager" |
+| `{{3}}` | `company_name` | "SureShip" |
+
+**Buttons:** None (informational only)
+
+**Code:** `sendSecondReminderNudge({ phoneNumber, candidateName, jobTitle, companyName })`
 
 ---
 
 ## Environment Variables
 
-### Meta WhatsApp Business API
-
 ```env
-# Meta WhatsApp Business API Configuration
-WHATSAPP_PHONE_NUMBER_ID="your_phone_number_id"
-WHATSAPP_BUSINESS_ACCOUNT_ID="2347186219423427"
-WHATSAPP_ACCESS_TOKEN="your_system_user_access_token"
-WHATSAPP_API_VERSION="v21.0"
-
-# Webhook Configuration
-WHATSAPP_VERIFY_TOKEN="gatihire_webhook_verify_2024"
-WHATSAPP_APP_SECRET="your_app_secret"
-
-# Template Names (must match Meta templates exactly)
+# Flow 1: Quick Screening (Existing)
 WHATSAPP_TEMPLATE_TALENT_OUTREACH="talent_outreach"
 WHATSAPP_TEMPLATE_SCREENING_INVITE="screening_invite"
+WHATSAPP_TEMPLATE_INBOUND_SCREENING="inbound_screening_invite"
 WHATSAPP_TEMPLATE_SCHEDULE_OPTIONS="schedule_options"
 WHATSAPP_TEMPLATE_CALL_NUDGE="call_nudge"
 WHATSAPP_TEMPLATE_TRIED_CALLING="tried_calling"
 WHATSAPP_TEMPLATE_MISSED_CALL_RESCHEDULE="missed_call_reschedule"
 WHATSAPP_TEMPLATE_REMINDER_NUDGE="reminder_nudge"
-WHATSAPP_TEMPLATE_INBOUND_SCREENING="inbound_screening_invite"
-```
 
-### Aisensy (Fallback)
+# Flow 2: Info Collection + Screening (New)
+WHATSAPP_TEMPLATE_OUTBOUND_INFO_REQUEST="outbound_info_request"
+WHATSAPP_TEMPLATE_INBOUND_INFO_REQUEST="inbound_info_request"
+WHATSAPP_TEMPLATE_INFO_RECEIVED_CONFIRM="info_received_confirm"
+WHATSAPP_TEMPLATE_AI_CALL_REASSURANCE="ai_call_reassurance"
 
-```env
-# Aisensy WhatsApp API Configuration (Fallback)
-AISENSY_API_KEY="your_aisensy_api_key"
-AISENSY_TEMPLATE_ID="Talent_Invite"
-AISENSY_SENDER_ID="truckinzy"
-```
-
----
-
-## API Integration
-
-### Send Template Message (Meta Cloud API)
-
-```typescript
-POST https://graph.facebook.com/{version}/{phone_number_id}/messages
-
-Headers:
-  Authorization: Bearer {access_token}
-  Content-Type: application/json
-
-Body:
-{
-  "messaging_product": "whatsapp",
-  "recipient_type": "individual",
-  "to": "{recipient_phone_number}",
-  "type": "template",
-  "template": {
-    "name": "{template_name}",
-    "language": {
-      "code": "en"
-    },
-    "components": [
-      {
-        "type": "body",
-        "parameters": [
-          {
-            "type": "text",
-            "text": "{variable_value}"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### With Quick Reply Buttons
-
-```typescript
-{
-  "type": "button",
-  "sub_type": "quick_reply",
-  "index": 0,
-  "parameters": [
-    {
-      "type": "payload",
-      "payload": "interested"
-    }
-  ]
-}
-```
-
-### Webhook Payload (Inbound Messages)
-
-```json
-{
-  "object": "whatsapp_business_account",
-  "entry": [
-    {
-      "id": "WHATSAPP_BUSINESS_ACCOUNT_ID",
-      "changes": [
-        {
-          "value": {
-            "messaging_product": "whatsapp",
-            "metadata": {
-              "display_phone_number": "15556745966",
-              "phone_number_id": "PHONE_NUMBER_ID"
-            },
-            "contacts": [
-              {
-                "profile": {
-                  "name": "Candidate Name"
-                },
-                "wa_id": "919876543210"
-              }
-            ],
-            "messages": [
-              {
-                "from": "919876543210",
-                "id": "wamid.HBgL...",
-                "timestamp": "1234567890",
-                "type": "interactive",
-                "interactive": {
-                  "type": "button_reply",
-                  "button_reply": {
-                    "id": "interested",
-                    "title": "Interested"
-                  }
-                }
-              }
-            ]
-          },
-          "field": "messages"
-        }
-      ]
-    }
-  ]
-}
+# Flow 3: Rejection Reason + Extended Screening (New)
+WHATSAPP_TEMPLATE_NOT_INTERESTED_REASON="not_interested_reason"
+WHATSAPP_TEMPLATE_DETAILED_INFO_REQUEST="detailed_info_request"
+WHATSAPP_TEMPLATE_SCREENING_FILTERED_OUT="screening_filtered_out"
+WHATSAPP_TEMPLATE_SECOND_REMINDER="second_reminder_nudge"
 ```
 
 ---
 
-## Flow Diagrams
+## Pipeline Statuses
 
-### Outbound Flow (HR reaches out)
+### Flow 1: Quick Screening
 ```
-1. HR triggers outreach → talent_outreach sent
-   "Hi Rahul, we have a role for you: AI Engineer at TechCorp..."
-   [Interested] [Not Interested]
-
-2. If "Interested" → screening_invite sent
-   "Great! Let's schedule your screening..."
-   [Call Now] [In 10 min] [In 30 min] [Today Evening]
-
-3. Candidate picks time → call_nudge sent (pre-call notification)
-   "Hi Rahul, our AI will call you shortly..."
-
-4. Bolna AI call placed → screening completed
-
-5. If no response after 4h → reminder_nudge sent
-   "Following up about the AI Engineer role..."
-
-6. If no response after 8h → Escalate to HR
+applied → whatsapp_sent → interested → call_scheduled → calling → call_done
 ```
 
-### Inbound Flow (Candidate applies via board-app)
+### Flow 2: Info Collection + Screening
 ```
-1. Candidate applies → admin triggers screening
-   inbound_screening_invite sent
-   "Hi Karan, thank you for applying for ML Engineer at AI Labs..."
-   [Call Now] [In 10 min] [In 30 min] [Today Evening]
-
-2. Candidate picks time → call_nudge sent (pre-call notification)
-   "Hi Karan, our AI will call you shortly..."
-
-3. Bolna AI call placed → screening completed
-
-4. If no response after 4h → reminder_nudge sent
-
-5. If no response after 8h → Escalate to HR
+applied → info_requested → info_received → call_scheduled → calling → call_done
 ```
 
-### Direct Call Flow (call_now mode)
+### Flow 3: Extended Screening
 ```
-1. Admin clicks "Call Now"
-2. call_nudge sent (pre-call notification)
-3. Wait 60s
-4. Bolna AI call placed
-5. If fails → missed_call_reschedule sent
-   [Call Now] [In 10 min] [In 1 hour] [Tomorrow Morning]
-6. Max 2 attempts → status: unreachable
+applied → info_requested → [pre-screen] → info_received → call_scheduled → calling → call_done
+                                           → filtered_out (if pre-screen fails)
 ```
 
-### Call Failure Flow
+### Rejection Reasons (captured on participants)
 ```
-1. Bolna call fails (no-answer/busy/disconnected)
-2. If retry_count < 2:
-   - Send missed_call_reschedule
-   - Schedule retry (15min for no-answer, 60min for other)
-3. If retry_count >= 2:
-   - Status → unreachable
-   - HR notified: "All retries exhausted"
+not_looking_to_switch | comp_mismatch | location_mismatch | already_placed | role_not_relevant | other
 ```
 
----
-
-## Testing Guide
-
-### Local Testing (Development)
-
-1. **Start ngrok**
-   ```bash
-   ngrok http 3000
-   ```
-
-2. **Configure Webhooks**
-   - Go to Meta App Dashboard → WhatsApp → Configuration
-   - Set Webhook URL: `https://your-ngrok-url/api/whatsapp/webhook/meta`
-   - Verify Token: `gatihire_webhook_verify_2024`
-   - Subscribe to events: `messages`
-
-3. **Test Each Template**
-   - Go to a candidate in the pipeline
-   - Click "WhatsApp Nudge" or "Call Now"
-   - Check Meta dashboard for delivery status
-   - Check ngrok for webhook events
-
-### Test Flow Checklist
-
-- [ ] **Outbound Flow:**
-  - [ ] Send `talent_outreach`
-  - [ ] Reply "Interested" → should send `schedule_options`
-  - [ ] Reply "Not Interested" → should stop
-  - [ ] Wait 4h → should send `reminder_nudge`
-  - [ ] Wait 8h → should escalate to HR
-
-- [ ] **Inbound Flow:**
-  - [ ] Apply via board-app
-  - [ ] Trigger WhatsApp-first screening
-  - [ ] Candidate picks time → schedule call
-  - [ ] Call completes → show results
-
-- [ ] **Direct Call Flow:**
-  - [ ] Click "Call Now"
-  - [ ] `call_nudge` sent
-  - [ ] Bolna call placed
-  - [ ] Call fails → `missed_call_reschedule` sent
-
-- [ ] **Retry Logic:**
-  - [ ] First call fails → reschedule options
-  - [ ] Second call fails → status: unreachable
-  - [ ] No more WhatsApp after max retries
-
-### Production Deployment
-
-1. Set all environment variables in Vercel
-2. Update webhook URL to `https://admin.gatihire.com/api/whatsapp/webhook/meta`
-3. Deploy and test end-to-end
-
----
-
-## Code References
-
-| File | Purpose |
-|---|---|
-| `lib/whatsapp.ts` | Meta WhatsApp API integration |
-| `app/api/whatsapp/webhook/meta/route.ts` | Meta webhook handler |
-| `lib/aisensy.ts` | Aisensy integration (fallback) |
-| `lib/call-orchestrator.ts` | Orchestrates screening campaigns |
-| `lib/scheduled-call.ts` | QStash-based call scheduling |
+### Sub-Sections in AI Screen Tab
+| Sub-Section | Status | What HR Sees |
+|-------------|--------|--------------|
+| `pending` | `applied` | Not yet contacted |
+| `info_requested` | `info_requested` | Waiting for candidate info |
+| `info_received` | `info_received` | Info received, ready to schedule |
+| `whatsapp_sent` | `whatsapp_sent` | Message sent, waiting |
+| `replied` | `interested` | Interested, ready to call |
+| `calling` | `calling` | AI call in progress |
+| `call_done` | `completed` | Screening complete |
+| `no_answer` | `failed` | No answer |
+| `retrying` | `retrying` | Auto-retry scheduled |
+| `unreachable` | `unreachable` | All retries exhausted |
 
 ---
 

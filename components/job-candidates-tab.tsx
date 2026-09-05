@@ -17,9 +17,12 @@ import {
 } from "@/components/ui/tooltip"
 import { PhoneScreeningResultsSheet } from "./phone-screening-results-sheet"
 import { CandidateActivityTimeline } from "./candidate-activity-timeline"
+import { CandidateTimeline } from "./candidate-timeline"
+import { CandidateMetricsBar } from "./candidate-metrics-bar"
+import { RootCauseAnalytics } from "./root-cause-analytics"
 import {
   Loader2, User, MapPin, Briefcase, Eye, Sparkles, Mail, Phone, ChevronDown, ChevronUp,
-  PhoneCall, PhoneOff, CheckCircle, Clock, UserX, Play, Save, Filter, MessageCircle, Send,
+  PhoneCall, PhoneOff, CheckCircle, CheckCheck, Check, Clock, UserX, Play, Save, Filter, MessageCircle, Send,
   AlertCircle, RefreshCw, BrainCircuit,
 } from "lucide-react"
 import {
@@ -60,7 +63,7 @@ interface Application {
 }
 
 type FilterValue = "all" | "inbound" | "outbound" | "database" | "board-app"
-type CallSubFilter = "all" | "pending" | "whatsapp_sent" | "replied" | "calling" | "call_done" | "no_answer" | "busy" | "disconnected" | "retrying" | "unreachable" | "rejected" | "waitlist" | "on_hold" | "passed" | "move_next"
+type CallSubFilter = "all" | "pending" | "waiting" | "engaged" | "calling" | "done" | "failed" | "rejected" | "waitlist" | "on_hold" | "passed" | "move_next"
 
 interface CandidateCardProps {
   application: Application
@@ -115,42 +118,30 @@ const STATUS_COLUMNS = [
 ]
 
 const CALL_SUB_SECTIONS = [
-  { id: "pending", label: "Pending", hint: "Not yet contacted" },
-  { id: "whatsapp_sent", label: "WhatsApp Sent", hint: "Message sent, waiting to be read" },
-  { id: "replied", label: "Replied", hint: "Candidate responded Yes" },
-  { id: "calling", label: "Calling Now", hint: "AI call in progress" },
-  { id: "call_done", label: "Call Done", hint: "Screening complete, review needed" },
-  { id: "no_answer", label: "No Answer", hint: "Candidate didn't pick up" },
-  { id: "busy", label: "Busy", hint: "Line was busy" },
-  { id: "disconnected", label: "Disconnected", hint: "Call dropped mid-conversation" },
-  { id: "retrying", label: "Retrying", hint: "Auto-retry scheduled" },
-  { id: "unreachable", label: "Unreachable", hint: "All retries exhausted" },
+  { id: "pending", label: "Pending", hint: "Not yet contacted", icon: "clock" },
+  { id: "waiting", label: "Waiting", hint: "WhatsApp sent or info requested — waiting for response", icon: "send" },
+  { id: "engaged", label: "Engaged", hint: "Candidate replied or info collected — ready to call", icon: "message" },
+  { id: "calling", label: "Calling", hint: "AI call in progress or auto-retry scheduled", icon: "phone" },
+  { id: "done", label: "Done", hint: "Screening complete — review results", icon: "check" },
+  { id: "failed", label: "Failed", hint: "No answer / busy / disconnected — manual follow-up needed", icon: "alert" },
 ] as const
 
 const CALL_STATUS_COLORS: Record<string, string> = {
   pending: "bg-zinc-100 text-zinc-600",
-  whatsapp_sent: "bg-teal-50 text-teal-700",
-  replied: "bg-green-50 text-green-700",
-  calling: "bg-amber-50 text-amber-700",
-  call_done: "bg-emerald-50 text-emerald-700",
-  no_answer: "bg-orange-50 text-orange-700",
-  busy: "bg-orange-50 text-orange-700",
-  disconnected: "bg-red-50 text-red-700",
-  retrying: "bg-blue-50 text-blue-700",
-  unreachable: "bg-red-50 text-red-600",
+  waiting: "bg-amber-50 text-amber-700",
+  engaged: "bg-green-50 text-green-700",
+  calling: "bg-blue-50 text-blue-700",
+  done: "bg-emerald-50 text-emerald-700",
+  failed: "bg-red-50 text-red-700",
 }
 
 const CALL_STATUS_ICONS: Record<string, any> = {
   pending: Clock,
-  whatsapp_sent: Send,
-  replied: MessageCircle,
+  waiting: Send,
+  engaged: MessageCircle,
   calling: PhoneCall,
-  call_done: CheckCircle,
-  no_answer: PhoneOff,
-  busy: PhoneOff,
-  disconnected: PhoneOff,
-  retrying: RefreshCw,
-  unreachable: UserX,
+  done: CheckCircle,
+  failed: AlertCircle,
 }
 
 const INTERVIEW_SUB_SECTIONS = [
@@ -217,41 +208,49 @@ function callSubSection(participant: any): string {
   const retryCount = participant?.retry_count || 0
   const nextRetryAt = participant?.next_retry_at
   const lastAttemptAt = participant?.last_attempt_at
+  const infoRequestSentAt = participant?.info_request_sent_at
+  const infoReceivedAt = participant?.info_received_at
+  const whatsappSentAt = participant?.whatsapp_sent_at
 
-  // Review takes precedence
-  if (review === "approved") return "call_done"
-  if (review === "rejected") return "unreachable"
+  // ── DONE (terminal success) ──
+  if (review === "approved") return "done"
+  if (status === "completed") return "done"
 
-  // Terminal completed
-  if (status === "completed") return "call_done"
+  // ── FAILED (terminal failure) ──
+  if (review === "rejected") return "failed"
+  if (status === "not_interested") return "failed"
+  if (status === "unreachable") return "failed"
+  if (status === "failed" && !nextRetryAt) return "failed"  // no retry = terminal
+  if (bolnaStatus === "canceled" || bolnaStatus === "stopped") return "failed"
 
-  // Specific failure statuses
-  if (status === "not_interested") return "unreachable"
-  if (status === "unreachable") return "unreachable"
-
-  // Auto-timeout: if call has been in calling/in_progress for >3 minutes, treat as no_answer
+  // ── CALLING (active call or retrying) ──
+  if (status === "in_progress" || status === "calling" || status === "call_scheduled") return "calling"
+  if (status === "failed" && nextRetryAt) return "calling"  // has retry = still trying
+  if (bolnaStatus === "no-answer" || bolnaStatus === "busy") {
+    // Call failed but may retry
+    if (nextRetryAt) return "calling"
+    return "failed"  // no more retries
+  }
+  // Auto-timeout: if call has been in calling/in_progress for >3 minutes
   if ((status === "calling" || status === "in_progress") && lastAttemptAt) {
     const elapsed = Date.now() - new Date(lastAttemptAt).getTime()
     const THREE_MINUTES = 3 * 60 * 1000
-    if (elapsed > THREE_MINUTES) return "no_answer"
+    if (elapsed > THREE_MINUTES) {
+      return nextRetryAt ? "calling" : "failed"
+    }
   }
 
-  // Bolna-specific failure statuses
-  if (bolnaStatus === "no-answer" || (status === "failed" && bolnaStatus === "no-answer")) return "no_answer"
-  if (bolnaStatus === "busy" || (status === "failed" && bolnaStatus === "busy")) return "busy"
-  if (bolnaStatus === "canceled" || bolnaStatus === "stopped") return "disconnected"
+  // ── ENGAGED (replied or info received) ──
+  if (reply) return "engaged"
+  if (status === "info_received" || infoReceivedAt) return "engaged"
+  if (status === "interested" || status === "call_me_now") return "engaged"
 
-  // Generic failed with retry pending
-  if (status === "failed" && nextRetryAt) return "retrying"
-  if (status === "failed") return "unreachable"
+  // ── WAITING (sent but no reply yet) ──
+  if (status === "info_requested" || infoRequestSentAt) return "waiting"
+  if (status === "whatsapp_sent" || delivery === "delivered" || delivery === "sent" || delivery === "read") return "waiting"
+  if (whatsappSentAt) return "waiting"
 
-  // Active call states
-  if (status === "in_progress" || status === "calling" || status === "call_scheduled") return "calling"
-
-  // WhatsApp states
-  if (reply) return "replied"
-  if (status === "whatsapp_sent" || delivery === "delivered" || delivery === "sent" || delivery === "read") return "whatsapp_sent"
-
+  // ── PENDING ──
   return "pending"
 }
 
@@ -273,28 +272,47 @@ const NEXT_ACTION_CONFIG: Record<string, { label: string; cta: string; icon: any
 function getActionForCard(application: Application, callStatus?: string, participant?: any): { label: string; cta: string; icon: any; color: string; action: string | null } | null {
   // If there's an active call sub-status, use that for more specific action
   if (application.status === "ai_screen" && callStatus) {
-    if (callStatus === "call_done") return { label: "Screening complete — review call results and AI verdict", cta: "View Results", icon: CheckCircle, color: "bg-emerald-50 border-emerald-200 text-emerald-800", action: "view_results" }
-    if (callStatus === "calling") return { label: "AI call in progress — results will appear shortly", cta: "In Progress", icon: PhoneCall, color: "bg-amber-50 border-amber-200 text-amber-800", action: null }
-    if (callStatus === "whatsapp_sent") return { label: "WhatsApp sent — waiting for candidate to respond", cta: "Waiting", icon: Send, color: "bg-teal-50 border-teal-200 text-teal-800", action: null }
-    if (callStatus === "replied") return { label: "Candidate replied — ready to start AI call", cta: "Start Call", icon: PhoneCall, color: "bg-green-50 border-green-200 text-green-800", action: "start_call" }
-    if (callStatus === "no_answer") {
+    // DONE
+    if (callStatus === "done") return { label: "Screening complete — review call results and AI verdict", cta: "View Results", icon: CheckCircle, color: "bg-emerald-50 border-emerald-200 text-emerald-800", action: "view_results" }
+    
+    // FAILED
+    if (callStatus === "failed") {
+      const bolnaStatus = participant?.bolna_status
       const retryCount = participant?.retry_count || 0
+      if (bolnaStatus === "no-answer") return { label: `No answer after ${retryCount} attempt${retryCount !== 1 ? "s" : ""} — needs manual follow-up`, cta: "Manual Follow-up", icon: UserX, color: "bg-red-50 border-red-200 text-red-800", action: "manual_followup" }
+      if (bolnaStatus === "busy") return { label: `Line busy after ${retryCount} attempt${retryCount !== 1 ? "s" : ""} — needs manual follow-up`, cta: "Manual Follow-up", icon: UserX, color: "bg-red-50 border-red-200 text-red-800", action: "manual_followup" }
+      return { label: "Call failed — needs manual follow-up", cta: "Manual Follow-up", icon: UserX, color: "bg-red-50 border-red-200 text-red-800", action: "manual_followup" }
+    }
+    
+    // CALLING
+    if (callStatus === "calling") {
       const nextRetry = participant?.next_retry_at
-      const retryIn = nextRetry ? formatRetryTime(nextRetry) : "15 min"
-      return { label: `No answer — auto-retry in ${retryIn} (attempt ${retryCount}/2)`, cta: "Retry Now", icon: PhoneCall, color: "bg-orange-50 border-orange-200 text-orange-800", action: "retry_now" }
-    }
-    if (callStatus === "busy") {
       const retryCount = participant?.retry_count || 0
-      return { label: `Line busy — auto-retry in 15 min (attempt ${retryCount}/2)`, cta: "Retry Now", icon: PhoneCall, color: "bg-orange-50 border-orange-200 text-orange-800", action: "retry_now" }
+      if (nextRetry) {
+        return { label: `Auto-retry in ${formatRetryTime(nextRetry)} (attempt ${retryCount + 1}/2)`, cta: "Retrying...", icon: RefreshCw, color: "bg-blue-50 border-blue-200 text-blue-800", action: null }
+      }
+      return { label: "AI call in progress — results will appear shortly", cta: "In Progress", icon: PhoneCall, color: "bg-amber-50 border-amber-200 text-amber-800", action: null }
     }
-    if (callStatus === "disconnected") return { label: "Call dropped — partial transcript available", cta: "View Partial", icon: AlertCircle, color: "bg-red-50 border-red-200 text-red-800", action: "view_results" }
-    if (callStatus === "retrying") {
-      const retryCount = participant?.retry_count || 0
-      const nextRetry = participant?.next_retry_at
-      const retryIn = nextRetry ? formatRetryTime(nextRetry) : "soon"
-      return { label: `Retrying — attempt ${retryCount + 1}/2 in ${retryIn}`, cta: "Retrying...", icon: RefreshCw, color: "bg-blue-50 border-blue-200 text-blue-800", action: "" }
+    
+    // ENGAGED
+    if (callStatus === "engaged") {
+      const reply = participant?.whatsapp_response || participant?.whatsapp_reply_text
+      if (reply) return { label: `Candidate replied "${reply}" — ready to start AI call`, cta: "Start Call", icon: PhoneCall, color: "bg-green-50 border-green-200 text-green-800", action: "start_call" }
+      return { label: "Info collected — ready to start AI call", cta: "Start Call", icon: PhoneCall, color: "bg-green-50 border-green-200 text-green-800", action: "start_call" }
     }
-    if (callStatus === "unreachable") return { label: "All retries exhausted — needs manual follow-up", cta: "Manual Follow-up", icon: UserX, color: "bg-red-50 border-red-200 text-red-800", action: "manual_followup" }
+    
+    // WAITING
+    if (callStatus === "waiting") {
+      const sentAt = participant?.whatsapp_sent_at || participant?.info_request_sent_at
+      if (sentAt) {
+        const elapsed = formatRetryTime(sentAt) // This shows time since sent
+        return { label: `Waiting for candidate response — sent ${elapsed} ago`, cta: "Waiting", icon: Send, color: "bg-amber-50 border-amber-200 text-amber-800", action: null }
+      }
+      return { label: "WhatsApp sent — waiting for candidate to respond", cta: "Waiting", icon: Send, color: "bg-amber-50 border-amber-200 text-amber-800", action: null }
+    }
+    
+    // PENDING
+    if (callStatus === "pending") return { label: "Not yet contacted — ready to start screening", cta: "Start Screening", icon: Play, color: "bg-zinc-50 border-zinc-200 text-zinc-800", action: "start_call" }
   }
   const config = NEXT_ACTION_CONFIG[application.status]
   if (!config) return null
@@ -326,11 +344,12 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
   const [participantDataByCandidate, setParticipantDataByCandidate] = useState<Record<string, any>>({})
   const [callNowCandidate, setCallNowCandidate] = useState<string | null>(null)
   const [nudgeBusyCandidate, setNudgeBusyCandidate] = useState<string | null>(null)
-  const [callMode, setCallMode] = useState<"call_now" | "whatsapp_first">("call_now")
+  const [callMode, setCallMode] = useState<"call_now" | "whatsapp_first" | "info_first" | "extended_screening">("call_now")
   const [aiInfoByCandidate, setAiInfoByCandidate] = useState<Record<string, { recommendation?: string; score?: number }>>({})
   const [callingStarted, setCallingStarted] = useState(false)
   const [bulkStage, setBulkStage] = useState("ai_screen")
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [bulkNudgeMode, setBulkNudgeMode] = useState<"call_now" | "whatsapp_first" | "info_first" | "extended_screening">("whatsapp_first")
   const [resultParticipantId, setResultParticipantId] = useState<string | null>(null)
 
   // Interview state
@@ -492,7 +511,13 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
     setRejectionReason("")
   }
 
-  const filtered = (activeStage === "all" ? applications : applications.filter((a) => a.status === activeStage))
+  const baseFiltered = activeStage === "all"
+    ? applications
+    : activeStage === "ai_screen"
+      ? applications.filter((a) => !!callStatusByCandidate[a.candidate_id])
+      : applications.filter((a) => a.status === activeStage)
+
+  const filtered = baseFiltered
     .filter((a) => {
       if (filter === "all") return true
       if (filter === "inbound") return (a.origin || "inbound") === "inbound"
@@ -538,7 +563,17 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
       const res = await fetch("/api/phone-screening/trigger", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId, candidateIds: selectedCandidateIds, callMode, createApplication: true }),
+        body: JSON.stringify({
+          jobId,
+          candidateIds: selectedCandidateIds,
+          callMode: bulkNudgeMode,
+          createApplication: true,
+          campaignConfig: {
+            nudgeHours: 4,
+            escalateHours: 8,
+            maxCallAttempts: 2,
+          },
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Failed to start screening")
@@ -546,13 +581,20 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
       const failed = data.callsFailed || 0
       const skipped = data.skippedNoPhone?.length || 0
       const nudged = data.nudgeSent || 0
+      const deduped = data.dedupedCount || 0
       let description = ""
-      if (callMode === "call_now") {
+      if (bulkNudgeMode === "call_now") {
         description = `${triggered} calls placed`; if (failed > 0) description += `, ${failed} failed`; if (skipped > 0) description += `, ${skipped} skipped (no phone)`
+      } else if (bulkNudgeMode === "info_first") {
+        description = `${nudged} info requests sent`; if (skipped > 0) description += `, ${skipped} skipped (no phone)`
+      } else if (bulkNudgeMode === "extended_screening") {
+        description = `${nudged} extended screening requests sent`; if (skipped > 0) description += `, ${skipped} skipped (no phone)`
       } else {
         description = `${nudged} WhatsApp nudges sent`; if (skipped > 0) description += `, ${skipped} skipped (no phone)`
       }
-      toast({ title: callMode === "call_now" ? "AI calls started" : "WhatsApp outreach started", description, variant: failed > 0 && triggered === 0 ? "destructive" : "default" })
+      if (deduped > 0) description += ` (${deduped} updated existing)`
+      const title = bulkNudgeMode === "call_now" ? "AI calls started" : bulkNudgeMode === "info_first" ? "Info requests sent" : bulkNudgeMode === "extended_screening" ? "Extended screening started" : "WhatsApp outreach started"
+      toast({ title, description, variant: failed > 0 && triggered === 0 ? "destructive" : "default" })
       setSelectedIds(new Set()); setConfirmCallsOpen(false)
       invalidateSessionCache(`internal:applications:job:${jobId}`); onRefresh(); fetchParticipants()
     } catch (err: any) {
@@ -711,7 +753,8 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
           <div className="space-y-2 px-1">
             <div className="flex flex-wrap items-center gap-1.5">
               {CALL_SUB_SECTIONS.map((sub) => {
-                const count = applications.filter((a) => (callStatusByCandidate[a.candidate_id] || "pending") === sub.id).length
+                const count = (activeStage === "ai_screen" ? baseFiltered : applications.filter((a) => a.status === activeStage))
+                  .filter((a) => (callStatusByCandidate[a.candidate_id] || "pending") === sub.id).length
                 return (
                   <button
                     key={sub.id}
@@ -731,13 +774,20 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
               )}
             </div>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              Flow: <span className="font-semibold text-zinc-500">WhatsApp Sent</span> → candidate reads → replies "Yes" → <span className="font-semibold text-zinc-500">AI Call</span> → <span className="font-semibold text-zinc-500">Call Done</span> → you review
-              {callSubFilter === "no_answer" && <span className="ml-2 text-orange-600">• No answer — auto-retry in 15 min</span>}
-              {callSubFilter === "busy" && <span className="ml-2 text-orange-600">• Line busy — auto-retry in 15 min</span>}
-              {callSubFilter === "disconnected" && <span className="ml-2 text-red-600">• Call dropped — partial transcript available</span>}
-              {callSubFilter === "retrying" && <span className="ml-2 text-blue-600">• Auto-retry scheduled</span>}
-              {callSubFilter === "unreachable" && <span className="ml-2 text-red-600">• All retries exhausted — manual follow-up needed</span>}
+              <span className="font-semibold text-zinc-500">Pending</span> → <span className="font-semibold text-zinc-500">Waiting</span> → <span className="font-semibold text-zinc-500">Engaged</span> → <span className="font-semibold text-zinc-500">Calling</span> → <span className="font-semibold text-zinc-500">Done</span>
+              {callSubFilter === "waiting" && <span className="ml-2 text-amber-600">• Waiting for candidate to respond</span>}
+              {callSubFilter === "engaged" && <span className="ml-2 text-green-600">• Candidate ready to call</span>}
+              {callSubFilter === "calling" && <span className="ml-2 text-blue-600">• AI call in progress or retrying</span>}
+              {callSubFilter === "done" && <span className="ml-2 text-emerald-600">• Screening complete — review results</span>}
+              {callSubFilter === "failed" && <span className="ml-2 text-red-600">• Needs manual follow-up</span>}
             </p>
+          </div>
+        )}
+
+        {/* ── Root Cause Analytics ── */}
+        {activeStage === "ai_screen" && (
+          <div className="px-1">
+            <RootCauseAnalytics participants={Object.values(participantDataByCandidate)} />
           </div>
         )}
 
@@ -801,11 +851,64 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
             >
               <div className="flex flex-wrap items-center gap-2 p-3 rounded-2xl border border-cyan-200 bg-cyan-50/50">
                 <span className="text-sm font-bold text-cyan-800">{selectedApplications.length} selected</span>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button size="sm" className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 gap-1" onClick={() => setConfirmCallsOpen(true)} disabled={callingStarted || selectedCandidateIds.length === 0}>
-                    {callingStarted ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-                    {callingStarted ? "Starting..." : `Start Screening (${selectedCandidateIds.length})`}
-                  </Button>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {/* Direct nudge buttons with tooltips */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        className="h-8 text-xs bg-teal-600 hover:bg-teal-700 text-white gap-1"
+                        onClick={() => { setBulkNudgeMode("whatsapp_first"); setConfirmCallsOpen(true) }}
+                        disabled={callingStarted || selectedCandidateIds.length === 0}
+                      >
+                        {callingStarted ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MessageCircle className="h-3.5 w-3.5" />}
+                        WhatsApp First
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="font-semibold">WhatsApp First</p>
+                      <p className="text-xs opacity-80">Send a WhatsApp context message to each candidate. AI calls them when they respond. Best for cold outreach.</p>
+                    </TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white gap-1"
+                        onClick={() => { setBulkNudgeMode("info_first"); setConfirmCallsOpen(true) }}
+                        disabled={callingStarted || selectedCandidateIds.length === 0}
+                      >
+                        {callingStarted ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                        Collect Info
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="font-semibold">Collect Info First</p>
+                      <p className="text-xs opacity-80">Ask candidates for CTC, notice period via WhatsApp before scheduling the AI call. Filters unqualified candidates early.</p>
+                    </TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                        onClick={() => { setBulkNudgeMode("call_now"); setConfirmCallsOpen(true) }}
+                        disabled={callingStarted || selectedCandidateIds.length === 0}
+                      >
+                        {callingStarted ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PhoneCall className="h-3.5 w-3.5" />}
+                        Call Now
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="font-semibold">Call Now (Skip WhatsApp)</p>
+                      <p className="text-xs opacity-80">Bolna AI calls each candidate immediately. No WhatsApp pre-nudge. Use when you have confirmed availability.</p>
+                    </TooltipContent>
+                  </Tooltip>
+
+                  <div className="w-px h-5 bg-cyan-300 mx-0.5" />
+
                   <Select value={bulkStage} onValueChange={setBulkStage}>
                     <SelectTrigger className="h-8 w-40 text-xs bg-white"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -940,20 +1043,27 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
                   <Badge className="text-xs font-bold px-3 py-1 rounded-full bg-violet-100 text-violet-700">{outboundCount} Outbound</Badge>
                 </div>
                 <div className="rounded-xl border border-zinc-200 overflow-hidden">
-                  <div className="grid grid-cols-2">
+                  <div className="grid grid-cols-3">
                     <button
-                      type="button" disabled={callingStarted} onClick={() => setCallMode("call_now")}
-                      className={`px-3 py-2.5 text-left text-xs transition-all ${callMode === "call_now" ? "bg-emerald-50 text-emerald-800 ring-1 ring-inset ring-emerald-300" : "text-zinc-500 hover:bg-zinc-50"}`}
-                    >
-                      <span className="block font-bold text-xs uppercase tracking-wide">Call Now</span>
-                      <span className="text-xs opacity-80 mt-0.5 block">Bolna calls each candidate immediately</span>
-                    </button>
-                    <button
-                      type="button" disabled={callingStarted} onClick={() => setCallMode("whatsapp_first")}
-                      className={`px-3 py-2.5 text-left text-xs transition-all ${callMode === "whatsapp_first" ? "bg-teal-50 text-teal-800 ring-1 ring-inset ring-teal-300" : "text-zinc-500 hover:bg-zinc-50"}`}
+                      type="button" disabled={callingStarted} onClick={() => setBulkNudgeMode("whatsapp_first")}
+                      className={`px-3 py-2.5 text-left text-xs transition-all ${bulkNudgeMode === "whatsapp_first" ? "bg-teal-50 text-teal-800 ring-1 ring-inset ring-teal-300" : "text-zinc-500 hover:bg-zinc-50"}`}
                     >
                       <span className="block font-bold text-xs uppercase tracking-wide">WhatsApp First</span>
-                      <span className="text-xs opacity-80 mt-0.5 block">Send WhatsApp, then AI call when they respond</span>
+                      <span className="text-xs opacity-80 mt-0.5 block">Send WhatsApp context, AI calls when they reply</span>
+                    </button>
+                    <button
+                      type="button" disabled={callingStarted} onClick={() => setBulkNudgeMode("info_first")}
+                      className={`px-3 py-2.5 text-left text-xs transition-all ${bulkNudgeMode === "info_first" ? "bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-300" : "text-zinc-500 hover:bg-zinc-50"}`}
+                    >
+                      <span className="block font-bold text-xs uppercase tracking-wide">Collect Info First</span>
+                      <span className="text-xs opacity-80 mt-0.5 block">Ask CTC, notice period before scheduling call</span>
+                    </button>
+                    <button
+                      type="button" disabled={callingStarted} onClick={() => setBulkNudgeMode("call_now")}
+                      className={`px-3 py-2.5 text-left text-xs transition-all ${bulkNudgeMode === "call_now" ? "bg-emerald-50 text-emerald-800 ring-1 ring-inset ring-emerald-300" : "text-zinc-500 hover:bg-zinc-50"}`}
+                    >
+                      <span className="block font-bold text-xs uppercase tracking-wide">Call Now</span>
+                      <span className="text-xs opacity-80 mt-0.5 block">Bolna AI calls immediately, no WhatsApp</span>
                     </button>
                   </div>
                 </div>
@@ -963,7 +1073,7 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
               <AlertDialogCancel disabled={callingStarted}>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={startAiCalls} disabled={callingStarted}>
                 {callingStarted ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <PhoneCall className="h-3.5 w-3.5 mr-1" />}
-                {callingStarted ? "Starting..." : callMode === "call_now" ? "Start calls now" : "Send WhatsApp first"}
+                {callingStarted ? "Starting..." : bulkNudgeMode === "call_now" ? "Start calls now" : bulkNudgeMode === "whatsapp_first" ? "Send WhatsApp first" : "Send info request"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -991,7 +1101,7 @@ function CandidateCard({ application, jobId, callStatus, participant, aiInfo, cl
   const [notesSaving, setNotesSaving] = useState(false)
   const [retagBusy, setRetagBusy] = useState(false)
   const [confirmCallOpen, setConfirmCallOpen] = useState(false)
-  const [confirmCallMode, setConfirmCallMode] = useState<"call_now" | "whatsapp_first">("call_now")
+  const [confirmCallMode, setConfirmCallMode] = useState<"call_now" | "whatsapp_first" | "info_first" | "extended_screening">("call_now")
   const [detailsExpanded, setDetailsExpanded] = useState(false)
 
   const nextAction = useMemo(() => getActionForCard(application, callStatus, participant), [application.status, callStatus, participant])
@@ -1028,19 +1138,25 @@ function CandidateCard({ application, jobId, callStatus, participant, aiInfo, cl
     finally { setRetagBusy(false) }
   }
 
-  const sendWhatsAppNudge = async (mode: "call_now" | "whatsapp_first") => {
+  const sendWhatsAppNudge = async (mode: "call_now" | "whatsapp_first" | "info_first" | "extended_screening") => {
     onNudgeStart?.()
     try {
       const res = await fetch("/api/phone-screening/trigger", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId, candidateIds: [c.id], origin: application.origin || "outbound", createApplication: true, callMode: mode }),
+        body: JSON.stringify({
+          jobId,
+          candidateIds: [c.id],
+          origin: application.origin || "outbound",
+          createApplication: true,
+          callMode: mode,
+          campaignConfig: { nudgeHours: 4, escalateHours: 8, maxCallAttempts: 2 },
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Failed to start screening")
-      toast({
-        title: mode === "call_now" ? "AI call started" : "WhatsApp nudge sent",
-        description: mode === "call_now" ? `Direct call triggered for ${c.name}` : `WhatsApp nudge sent to ${c.name}`,
-      })
+      const title = mode === "call_now" ? "AI call started" : mode === "info_first" ? "Info request sent" : mode === "extended_screening" ? "Extended screening started" : "WhatsApp nudge sent"
+      const desc = mode === "call_now" ? `Direct call triggered for ${c.name}` : mode === "info_first" ? `Info request sent to ${c.name}` : mode === "extended_screening" ? `Extended screening request sent to ${c.name}` : `WhatsApp nudge sent to ${c.name}`
+      toast({ title, description: desc })
       onApplicationUpdated({ ...application, status: "ai_screen" })
     } catch (err: any) { toast({ title: "Failed", description: err.message, variant: "destructive" }) }
     finally { onNudgeEnd?.() }
@@ -1131,6 +1247,44 @@ function CandidateCard({ application, jobId, callStatus, participant, aiInfo, cl
                     Applied {formatDistanceToNow(new Date(application.applied_at), { addSuffix: true })}
                   </span>
                 </div>
+                {/* WhatsApp Status Badge + Metrics */}
+                {participant && (
+                  <div className="mt-2">
+                    <div className="flex items-center gap-1.5">
+                      <Badge
+                        className={`text-[10px] font-semibold px-2 py-0.5 ${
+                          callStatus === "done" ? "bg-green-100 text-green-700 border-green-200" :
+                          callStatus === "engaged" ? "bg-emerald-100 text-emerald-700 border-emerald-200" :
+                          callStatus === "calling" ? "bg-blue-100 text-blue-700 border-blue-200" :
+                          callStatus === "waiting" ? "bg-amber-100 text-amber-700 border-amber-200" :
+                          callStatus === "failed" ? "bg-red-100 text-red-700 border-red-200" :
+                          "bg-zinc-100 text-zinc-600 border-zinc-200"
+                        }`}
+                      >
+                        {callStatus === "done" && <CheckCircle className="h-3 w-3 mr-1" />}
+                        {callStatus === "engaged" && <MessageCircle className="h-3 w-3 mr-1" />}
+                        {callStatus === "calling" && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                        {callStatus === "waiting" && <Send className="h-3 w-3 mr-1" />}
+                        {callStatus === "failed" && <AlertCircle className="h-3 w-3 mr-1" />}
+                        <span className="capitalize">{(callStatus || "pending").replace(/_/g, " ")}</span>
+                      </Badge>
+                      {participant.whatsapp_delivery_status && (
+                        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${
+                          participant.whatsapp_delivery_status === "read" ? "text-green-600 border-green-200" :
+                          participant.whatsapp_delivery_status === "delivered" ? "text-blue-600 border-blue-200" :
+                          participant.whatsapp_delivery_status === "sent" ? "text-zinc-500 border-zinc-200" :
+                          "text-red-500 border-red-200"
+                        }`}>
+                          {participant.whatsapp_delivery_status === "read" && <CheckCheck className="h-3 w-3 mr-0.5" />}
+                          {participant.whatsapp_delivery_status === "delivered" && <Check className="h-3 w-3 mr-0.5" />}
+                          <span className="capitalize">{participant.whatsapp_delivery_status}</span>
+                        </Badge>
+                      )}
+                    </div>
+                    {/* Metrics Bar */}
+                    <CandidateMetricsBar participant={participant} callStatus={callStatus || "pending"} />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1257,12 +1411,18 @@ function CandidateCard({ application, jobId, callStatus, participant, aiInfo, cl
                     Nudge
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => { setConfirmCallMode("whatsapp_first"); setConfirmCallOpen(true) }}>
-                    <MessageCircle className="h-3.5 w-3.5 mr-2" />WhatsApp First
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem onClick={() => { setConfirmCallMode("whatsapp_first"); setConfirmCallOpen(true) }} className="flex flex-col items-start gap-0.5 py-2">
+                    <span className="flex items-center gap-2 font-semibold text-xs"><MessageCircle className="h-3.5 w-3.5 text-teal-500" /> WhatsApp First</span>
+                    <span className="text-[11px] text-zinc-400 leading-snug">Send context via WhatsApp. AI calls when they respond.</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setConfirmCallMode("call_now"); setConfirmCallOpen(true) }}>
-                    <PhoneCall className="h-3.5 w-3.5 mr-2" />Call Now (Skip WhatsApp)
+                  <DropdownMenuItem onClick={() => { setConfirmCallMode("info_first"); setConfirmCallOpen(true) }} className="flex flex-col items-start gap-0.5 py-2">
+                    <span className="flex items-center gap-2 font-semibold text-xs"><Send className="h-3.5 w-3.5 text-amber-500" /> Collect Info First</span>
+                    <span className="text-[11px] text-zinc-400 leading-snug">Ask CTC, notice period via WhatsApp before scheduling.</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { setConfirmCallMode("call_now"); setConfirmCallOpen(true) }} className="flex flex-col items-start gap-0.5 py-2">
+                    <span className="flex items-center gap-2 font-semibold text-xs"><PhoneCall className="h-3.5 w-3.5 text-emerald-500" /> Call Now</span>
+                    <span className="text-[11px] text-zinc-400 leading-snug">Skip WhatsApp. Bolna AI calls immediately.</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -1334,6 +1494,14 @@ function CandidateCard({ application, jobId, callStatus, participant, aiInfo, cl
                           </div>
                         </div>
                       </div>
+                    )}
+
+                    {/* Activity Timeline */}
+                    {participant && (
+                      <CandidateTimeline
+                        participant={participant}
+                        candidateName={c.name || "Candidate"}
+                      />
                     )}
 
                     {/* AI Generated Questions */}
@@ -1454,17 +1622,21 @@ function CandidateCard({ application, jobId, callStatus, participant, aiInfo, cl
       <AlertDialog open={confirmCallOpen} onOpenChange={setConfirmCallOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{confirmCallMode === "call_now" ? "Start AI call?" : "Send WhatsApp nudge?"}</AlertDialogTitle>
+            <AlertDialogTitle>{confirmCallMode === "call_now" ? "Start AI call?" : confirmCallMode === "info_first" ? "Collect candidate info?" : confirmCallMode === "extended_screening" ? "Start extended screening?" : "Send WhatsApp nudge?"}</AlertDialogTitle>
             <AlertDialogDescription>
               {confirmCallMode === "call_now"
                 ? `Bolna will directly call ${c.name}. The AI agent will screen them for this role.`
+                : confirmCallMode === "info_first"
+                ? `Send an info request to ${c.name}. They will share CTC and notice period before scheduling the call.`
+                : confirmCallMode === "extended_screening"
+                ? `Send extended screening request to ${c.name}. They will share full details (CTC, experience, location, relocation, reason for switching) and we'll pre-screen before the AI call.`
                 : `Send a WhatsApp context message to ${c.name}. An automated call will follow when they respond.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => { setConfirmCallOpen(false); sendWhatsAppNudge(confirmCallMode) }}>
-              {confirmCallMode === "call_now" ? "Call Now" : "Send Nudge"}
+              {confirmCallMode === "call_now" ? "Call Now" : confirmCallMode === "info_first" ? "Send Info Request" : confirmCallMode === "extended_screening" ? "Start Extended Screening" : "Send Nudge"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -74,7 +74,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         .select(`
           id, name, email, phone, current_role, current_company, location, current_city,
           total_experience, summary, technical_skills, soft_skills, job_titles, desired_role,
-          resume_text, file_url, file_name
+          resume_text, file_url, file_name,
+          current_ctc, expected_ctc, notice_period, total_experience_years,
+          location_preference, willing_to_relocate, reason_for_switching
         `)
         .in("id", candidateIds)
       for (const c of cands || []) candById.set(String(c.id), c)
@@ -126,7 +128,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           phone: c?.phone || null,
 
           // Profile detail
-          totalExperience: c?.total_experience ?? null,
+          totalExperience: c?.total_experience ?? c?.total_experience_years ?? null,
           summary: c?.summary || null,
           technicalSkills: parseList(c?.technical_skills),
           softSkills: parseList(c?.soft_skills),
@@ -135,6 +137,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           resumeText: typeof c?.resume_text === "string" ? c.resume_text.slice(0, 20000) : "",
           hasResumeFile: Boolean(c?.file_url || c?.file_name),
           fileName: c?.file_name || null,
+
+          // WhatsApp-collected screening info
+          currentCtc: c?.current_ctc || null,
+          expectedCtc: c?.expected_ctc || null,
+          noticePeriod: c?.notice_period || null,
+          locationPreference: c?.location_preference || null,
+          willingToRelocate: c?.willing_to_relocate ?? null,
+          reasonForSwitching: c?.reason_for_switching || null,
 
           matchScore: r.match_score,
           screeningScore: r.screening_score,

@@ -27,7 +27,22 @@ function clampInt(raw: string | undefined, fallback: number, min: number, max: n
 }
 
 // How many failed attempts before we stop auto-retrying a participant.
-// Max 2 attempts to avoid candidate frustration.
+// Reads from campaign config if available, falls back to env var.
+export async function getMaxCallAttempts(campaignId?: string | null): Promise<number> {
+  if (campaignId) {
+    const { data: campaign } = await supabaseAdmin
+      .from("phone_screening_campaigns")
+      .select("max_call_attempts")
+      .eq("id", campaignId)
+      .maybeSingle()
+    if (campaign?.max_call_attempts) {
+      return Math.max(1, Math.min(3, campaign.max_call_attempts))
+    }
+  }
+  return clampInt(process.env.MAX_CALL_ATTEMPTS, 2, 1, 3)
+}
+
+// Synchronous fallback for callers without campaign context
 export const MAX_CALL_ATTEMPTS = 2
 
 // QStash accepts delays up to 24 hours.
@@ -127,6 +142,7 @@ interface ParticipantRow {
   whatsapp_sent_at?: string | null
   next_retry_at?: string | null
   scheduled_call_at?: string | null
+  campaign_id?: string | null
   candidates?: { id: string; name?: string | null; phone?: string | null } | null
 }
 
@@ -147,7 +163,7 @@ export async function placeCallForParticipant(
     .from("phone_screening_participants")
     .select(`
       id, status, call_attempts, call_payload_json,
-      whatsapp_sent_at, next_retry_at, scheduled_call_at,
+      whatsapp_sent_at, next_retry_at, scheduled_call_at, campaign_id,
       candidates: candidate_id (id, name, phone)
     `)
     .eq("id", participantId)
@@ -170,7 +186,8 @@ export async function placeCallForParticipant(
         return { success: false, skipped: true, error: "Callback not due yet" }
       }
     } else if (row.status === "failed") {
-      if (row.call_attempts >= MAX_CALL_ATTEMPTS) {
+      const maxAttempts = await getMaxCallAttempts(row.campaign_id)
+      if (row.call_attempts >= maxAttempts) {
         await supabaseAdmin
           .from("phone_screening_participants")
           .update({ bolna_status: "max_retries", updated_at: new Date().toISOString() })

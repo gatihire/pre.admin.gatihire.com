@@ -23,7 +23,7 @@ async function handler(request: NextRequest) {
     const { data: participant, error: partError } = await supabaseAdmin
       .from("phone_screening_participants")
       .select(`
-        id, status, outreach_nudge_count,
+        id, status, outreach_nudge_count, campaign_id,
         candidates: candidate_id (id, name, phone),
         jobs: job_id (id, title, city)
       `)
@@ -38,6 +38,7 @@ async function handler(request: NextRequest) {
       id: string
       status: string
       outreach_nudge_count: number
+      campaign_id: string
       candidates?: { id: string; name?: string | null; phone?: string | null } | null
       jobs?: { id: string; title?: string | null; city?: string | null } | null
     }
@@ -47,10 +48,38 @@ async function handler(request: NextRequest) {
       return NextResponse.json({ success: false, skipped: true, reason: `Participant advanced (${row.status})` })
     }
 
+    // Check campaign max call attempts to cap nudge count
+    let maxNudgeCount = 1 // default: 1 nudge before escalate
+    if (row.campaign_id) {
+      const { data: campaign } = await supabaseAdmin
+        .from("phone_screening_campaigns")
+        .select("max_call_attempts, nudge_hours, escalate_hours")
+        .eq("id", row.campaign_id)
+        .maybeSingle()
+      if (campaign) {
+        maxNudgeCount = Math.max(1, (campaign.max_call_attempts || 2) - 1)
+      }
+    }
+
     const candidate = row.candidates
     const job = row.jobs
 
     if (action === "nudge") {
+      // Respect per-job max nudge count
+      if ((row.outreach_nudge_count || 0) >= maxNudgeCount) {
+        // Already sent max nudges — escalate instead
+        await supabaseAdmin
+          .from("phone_screening_participants")
+          .update({
+            status: "needs_manual_followup",
+            needs_manual_followup: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", participantId)
+        logger.info("Max nudges reached, auto-escalating", { participantId, nudgeCount: row.outreach_nudge_count })
+        return NextResponse.json({ success: true, escalated: true, reason: "max_nudges_reached" })
+      }
+
       if (!candidate?.phone) {
         return NextResponse.json({ success: false, skipped: true, reason: "No phone" })
       }

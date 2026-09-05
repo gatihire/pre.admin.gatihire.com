@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Download, MapPin, Phone, Mail, Building, Award, Globe, FileText,
@@ -62,6 +62,9 @@ interface EnrichedCandidate {
   currentSalary?: string
   expectedSalary?: string
   noticePeriod?: string
+  locationPreference?: string | null
+  willingToRelocate?: boolean | null
+  reasonForSwitching?: string | null
   linkedin_profile?: string
   rating?: number
   [key: string]: any
@@ -115,6 +118,10 @@ export function CandidateProfileSidebar({
         currentSalary: enriched.currentSalary || enriched.current_salary,
         expectedSalary: enriched.expectedSalary || enriched.expected_salary,
         noticePeriod: enriched.noticePeriod || enriched.notice_period,
+        totalExperience: enriched.totalExperience ?? enriched.total_experience ?? enriched.total_experience_years ?? null,
+        locationPreference: enriched.locationPreference ?? enriched.location_preference ?? null,
+        willingToRelocate: enriched.willingToRelocate ?? enriched.willing_to_relocate ?? null,
+        reasonForSwitching: enriched.reasonForSwitching ?? enriched.reason_for_switching ?? null,
         linkedin_profile: enriched.linkedin_profile || enriched.linkedinProfile,
         workExperience: enriched.workExperience || enriched.work_experience || [],
         education: enriched.education || [],
@@ -136,7 +143,6 @@ export function CandidateProfileSidebar({
       desiredRole: rawCandidate.desiredRole || rawCandidate.desired_role,
       currentCompany: rawCandidate.currentCompany || rawCandidate.current_company,
       location: rawCandidate.location,
-      totalExperience: rawCandidate.totalExperience || rawCandidate.total_experience,
       highestQualification: rawCandidate.highestQualification || rawCandidate.highest_qualification,
       degree: rawCandidate.degree,
       university: rawCandidate.university,
@@ -152,6 +158,10 @@ export function CandidateProfileSidebar({
       currentSalary: rawCandidate.currentSalary || rawCandidate.current_salary,
       expectedSalary: rawCandidate.expectedSalary || rawCandidate.expected_salary,
       noticePeriod: rawCandidate.noticePeriod || rawCandidate.notice_period,
+      totalExperience: rawCandidate.totalExperience ?? rawCandidate.total_experience ?? rawCandidate.total_experience_years ?? null,
+      locationPreference: rawCandidate.locationPreference ?? rawCandidate.location_preference ?? null,
+      willingToRelocate: rawCandidate.willingToRelocate ?? rawCandidate.willing_to_relocate ?? null,
+      reasonForSwitching: rawCandidate.reasonForSwitching ?? rawCandidate.reason_for_switching ?? null,
       linkedin_profile: rawCandidate.linkedin_profile,
       rating: rawCandidate.rating,
     }
@@ -287,7 +297,7 @@ export function CandidateProfileSidebar({
             </div>
 
             {/* Expectations card (right-aligned) */}
-            {(c.currentSalary || c.expectedSalary || c.noticePeriod) && (
+            {(c.currentSalary || c.expectedSalary || c.noticePeriod || c.totalExperience || c.locationPreference || c.willingToRelocate != null || c.reasonForSwitching) && (
               <div className="bg-zinc-900 rounded-xl p-3 min-w-[140px] shrink-0">
                 <p className="font-mono text-[9px] font-bold uppercase tracking-[0.1em] text-zinc-400 mb-2">
                   Expectations
@@ -309,6 +319,32 @@ export function CandidateProfileSidebar({
                     <div className="flex justify-between text-xs">
                       <span className="text-zinc-400">Notice</span>
                       <span className="font-bold text-white">{c.noticePeriod}</span>
+                    </div>
+                  )}
+                  {c.totalExperience != null && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-zinc-400">Experience</span>
+                      <span className="font-bold text-white">{c.totalExperience}y</span>
+                    </div>
+                  )}
+                  {c.locationPreference && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-zinc-400">Location</span>
+                      <span className="font-bold text-white">{c.locationPreference}</span>
+                    </div>
+                  )}
+                  {c.willingToRelocate != null && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-zinc-400">Relocate</span>
+                      <span className={`font-bold ${c.willingToRelocate ? "text-emerald-400" : "text-red-400"}`}>
+                        {c.willingToRelocate ? "Yes" : "No"}
+                      </span>
+                    </div>
+                  )}
+                  {c.reasonForSwitching && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-zinc-400">Switching</span>
+                      <span className="font-bold text-white text-right max-w-[80px] truncate" title={c.reasonForSwitching}>{c.reasonForSwitching}</span>
                     </div>
                   )}
                 </div>
@@ -941,6 +977,7 @@ export function CandidateProfileSidebar({
     {/* ── Resume Fullscreen Modal ── */}
     <Dialog open={resumeExpanded} onOpenChange={setResumeExpanded}>
       <DialogContent className="!fixed !inset-0 !left-0 !top-0 !translate-x-0 !translate-y-0 !max-w-none !max-h-none !w-screen !h-screen !rounded-none !border-0 !p-[15px] !gap-0 !m-0 [&>button]:hidden">
+        <DialogTitle className="sr-only">Resume Preview</DialogTitle>
         <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
           <button
             className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"

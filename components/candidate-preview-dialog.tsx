@@ -737,11 +737,24 @@ export function CandidatePreviewDialog({
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                       <div className="p-3 bg-orange-50 rounded-lg">
                         <p className="text-sm font-medium text-gray-700">Current CTC</p>
-                        <p className="text-gray-800 font-semibold">{safeCandidate.current_salary || "Not specified"}</p>
+                        <p className="text-gray-800 font-semibold">{safeCandidate.current_ctc || safeCandidate.current_salary || "Not specified"}</p>
+                        {safeCandidate.current_ctc && safeCandidate.current_ctc !== safeCandidate.current_salary && (
+                          <p className="text-xs text-green-600 mt-1">Collected via WhatsApp</p>
+                        )}
                       </div>
                       <div className="p-3 bg-blue-50 rounded-lg">
                         <p className="text-sm font-medium text-gray-700">Expected CTC</p>
-                        <p className="text-gray-800 font-semibold">{safeCandidate.expected_salary || "Not specified"}</p>
+                        <p className="text-gray-800 font-semibold">{safeCandidate.expected_ctc || safeCandidate.expected_salary || "Not specified"}</p>
+                        {safeCandidate.expected_ctc && safeCandidate.expected_ctc !== safeCandidate.expected_salary && (
+                          <p className="text-xs text-green-600 mt-1">Collected via WhatsApp</p>
+                        )}
+                      </div>
+                      <div className="p-3 bg-purple-50 rounded-lg">
+                        <p className="text-sm font-medium text-gray-700">Notice Period</p>
+                        <p className="text-gray-800 font-semibold">{safeCandidate.notice_period || "Not specified"}</p>
+                        {safeCandidate.notice_period && (
+                          <p className="text-xs text-green-600 mt-1">Collected via WhatsApp</p>
+                        )}
                       </div>
                       <div className="p-3 bg-green-50 rounded-lg flex items-center justify-between">
                         <div>
@@ -749,13 +762,6 @@ export function CandidatePreviewDialog({
                           <p className="text-gray-800 font-semibold">{safeCandidate.looking_for_work !== false ? "Yes" : "No"}</p>
                         </div>
                         <div className={`h-2.5 w-2.5 rounded-full ${safeCandidate.looking_for_work !== false ? 'bg-green-500' : 'bg-gray-300'}`} />
-                      </div>
-                      <div className="p-3 bg-indigo-50 rounded-lg flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-gray-700">Is Fresher?</p>
-                          <p className="text-gray-800 font-semibold">{safeCandidate.tags?.includes('fresher:yes') ? "Yes" : "No"}</p>
-                        </div>
-                        <div className={`h-2.5 w-2.5 rounded-full ${safeCandidate.tags?.includes('fresher:yes') ? 'bg-indigo-500' : 'bg-gray-300'}`} />
                       </div>
                     </div>
                   </CardContent>

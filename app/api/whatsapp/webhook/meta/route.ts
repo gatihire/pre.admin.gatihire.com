@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase"
 import { logger } from "@/lib/logger"
+import { handleInfoReply, handleDetailedInfoReply, handleRejectionReason, sendInfoRequest } from "@/lib/info-collector"
 import crypto from "crypto"
 
 // Verify Meta webhook signature
@@ -142,13 +143,18 @@ async function handleInteractiveMessage(participant: any, interactive: any) {
         break
 
       case "not_interested":
-        await supabaseAdmin
-          .from("phone_screening_participants")
-          .update({ 
-            status: "not_interested",
-            updated_at: new Date().toISOString()
+        // Send rejection reason template (6 buttons) to capture why
+        const { getWhatsAppService } = await import("@/lib/whatsapp")
+        const whatsapp = getWhatsAppService()
+        const candidate = participant.candidates
+        if (candidate?.phone) {
+          await whatsapp.sendNotInterestedReason({
+            phoneNumber: candidate.phone,
+            candidateName: candidate.name || "",
           })
-          .eq("id", participant.id)
+        }
+        // Keep status as interested temporarily while waiting for reason
+        // The reason buttons will set it to not_interested with rejection_reason
         break
 
       case "call_now":
@@ -185,6 +191,55 @@ async function handleInteractiveMessage(participant: any, interactive: any) {
         await scheduleCall(participant, tomorrowDelay)
         break
 
+      case "provide_details":
+        // Candidate clicked "Provide Details" - they will reply with text
+        await supabaseAdmin
+          .from("phone_screening_participants")
+          .update({ 
+            status: "info_requested",
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", participant.id)
+        break
+
+      case "skip_schedule_call":
+        // Candidate skipped info collection - schedule call directly
+        await supabaseAdmin
+          .from("phone_screening_participants")
+          .update({ 
+            status: "whatsapp_sent",
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", participant.id)
+        // Send schedule options
+        // TODO: Send schedule_options template
+        break
+
+      // Rejection reason buttons (from not_interested_reason template)
+      case "reject_not_looking":
+        await handleRejectionReason(participant.id, "not_looking_to_switch")
+        break
+
+      case "reject_comp_mismatch":
+        await handleRejectionReason(participant.id, "comp_mismatch")
+        break
+
+      case "reject_location":
+        await handleRejectionReason(participant.id, "location_mismatch")
+        break
+
+      case "reject_placed":
+        await handleRejectionReason(participant.id, "already_placed")
+        break
+
+      case "reject_role_not_relevant":
+        await handleRejectionReason(participant.id, "role_not_relevant")
+        break
+
+      case "reject_other":
+        await handleRejectionReason(participant.id, "other")
+        break
+
       default:
         logger.info("Unknown button reply", { buttonId })
     }
@@ -198,6 +253,32 @@ async function handleTextMessage(participant: any, text: any) {
     participantId: participant.id, 
     message: messageBody 
   })
+
+  // Check if this is an info collection reply (contains numbers and possibly LPA, days, etc.)
+  if (participant.status === "info_requested") {
+    // Check if this is a detailed info request (extended screening)
+    const screeningContext = participant.screening_context
+    const isExtended = screeningContext && participant.whatsapp_outbound_template === "detailed_info_request"
+    
+    if (isExtended) {
+      const infoResult = await handleDetailedInfoReply(participant.id, text.body)
+      if (infoResult.success) {
+        logger.info("Detailed info reply parsed and saved", { 
+          participantId: participant.id,
+          decision: infoResult.prescreen?.decision 
+        })
+        return
+      }
+    } else {
+      // Simple info reply (backward compatible)
+      const infoResult = await handleInfoReply(participant.id, text.body)
+      if (infoResult.success) {
+        logger.info("Info reply parsed and saved", { participantId: participant.id })
+        return
+      }
+    }
+    // If parsing failed, continue with normal text handling
+  }
 
   // Simple NLP for time parsing
   if (messageBody.includes("interested") || messageBody.includes("yes")) {

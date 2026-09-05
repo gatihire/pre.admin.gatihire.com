@@ -383,6 +383,204 @@ export class WhatsAppService {
       ]
     })
   }
+
+  // Flow 2: Info Collection Templates
+
+  async sendOutboundInfoRequest(params: {
+    phoneNumber: string
+    candidateName: string
+    jobTitle: string
+    companyName: string
+  }): Promise<SendMessageResult> {
+    const templateName = process.env.WHATSAPP_TEMPLATE_OUTBOUND_INFO_REQUEST || "outbound_info_request"
+    
+    return this.sendTemplateMessage({
+      to: params.phoneNumber,
+      templateName,
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.candidateName },
+            { type: "text", text: params.jobTitle },
+            { type: "text", text: params.companyName }
+          ]
+        }
+      ]
+    })
+  }
+
+  async sendInboundInfoRequest(params: {
+    phoneNumber: string
+    candidateName: string
+    jobTitle: string
+    companyName: string
+  }): Promise<SendMessageResult> {
+    const templateName = process.env.WHATSAPP_TEMPLATE_INBOUND_INFO_REQUEST || "inbound_info_request"
+    
+    return this.sendTemplateMessage({
+      to: params.phoneNumber,
+      templateName,
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.candidateName },
+            { type: "text", text: params.jobTitle },
+            { type: "text", text: params.companyName }
+          ]
+        }
+      ]
+    })
+  }
+
+  async sendInfoReceivedConfirm(params: {
+    phoneNumber: string
+    candidateName: string
+    currentCtc: string
+    expectedCtc: string
+    noticePeriod: string
+  }): Promise<SendMessageResult> {
+    const templateName = process.env.WHATSAPP_TEMPLATE_INFO_RECEIVED_CONFIRM || "info_received_confirm"
+    
+    return this.sendTemplateMessage({
+      to: params.phoneNumber,
+      templateName,
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.candidateName },
+            { type: "text", text: params.currentCtc },
+            { type: "text", text: params.expectedCtc },
+            { type: "text", text: params.noticePeriod }
+          ]
+        }
+      ]
+    })
+  }
+
+  async sendAiCallReassurance(params: {
+    phoneNumber: string
+    candidateName: string
+    jobTitle: string
+    companyName: string
+  }): Promise<SendMessageResult> {
+    const templateName = process.env.WHATSAPP_TEMPLATE_AI_CALL_REASSURANCE || "ai_call_reassurance"
+    
+    return this.sendTemplateMessage({
+      to: params.phoneNumber,
+      templateName,
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.candidateName },
+            { type: "text", text: params.jobTitle },
+            { type: "text", text: params.companyName }
+          ]
+        }
+      ]
+    })
+  }
+
+  // Flow 3: Rejection Reason Template
+
+  async sendNotInterestedReason(params: {
+    phoneNumber: string
+    candidateName: string
+  }): Promise<SendMessageResult> {
+    const templateName = process.env.WHATSAPP_TEMPLATE_NOT_INTERESTED_REASON || "not_interested_reason"
+    
+    return this.sendTemplateMessage({
+      to: params.phoneNumber,
+      templateName,
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.candidateName }
+          ]
+        }
+      ]
+    })
+  }
+
+  // Flow 4: Extended Info Collection Template
+
+  async sendDetailedInfoRequest(params: {
+    phoneNumber: string
+    candidateName: string
+    jobTitle: string
+    companyName: string
+  }): Promise<SendMessageResult> {
+    const templateName = process.env.WHATSAPP_TEMPLATE_DETAILED_INFO_REQUEST || "detailed_info_request"
+    
+    return this.sendTemplateMessage({
+      to: params.phoneNumber,
+      templateName,
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.candidateName },
+            { type: "text", text: params.jobTitle },
+            { type: "text", text: params.companyName }
+          ]
+        }
+      ]
+    })
+  }
+
+  // Flow 5: Screening Decision (filtered out)
+
+  async sendScreeningFilteredOut(params: {
+    phoneNumber: string
+    candidateName: string
+    reason: string
+  }): Promise<SendMessageResult> {
+    const templateName = process.env.WHATSAPP_TEMPLATE_SCREENING_FILTERED_OUT || "screening_filtered_out"
+    
+    return this.sendTemplateMessage({
+      to: params.phoneNumber,
+      templateName,
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.candidateName },
+            { type: "text", text: params.reason }
+          ]
+        }
+      ]
+    })
+  }
+
+  // Flow 6: Second Reminder Nudge (for multi-attempt campaigns)
+
+  async sendSecondReminderNudge(params: {
+    phoneNumber: string
+    candidateName: string
+    jobTitle: string
+    companyName: string
+  }): Promise<SendMessageResult> {
+    const templateName = process.env.WHATSAPP_TEMPLATE_SECOND_REMINDER || "second_reminder_nudge"
+    
+    return this.sendTemplateMessage({
+      to: params.phoneNumber,
+      templateName,
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.candidateName },
+            { type: "text", text: params.jobTitle },
+            { type: "text", text: params.companyName }
+          ]
+        }
+      ]
+    })
+  }
 }
 
 // Singleton instance

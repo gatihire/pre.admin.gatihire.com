@@ -13,7 +13,13 @@ interface TriggerRequest {
   candidateIds: string[]
   origin?: CandidateOrigin
   createApplication?: boolean
-  callMode?: "call_now" | "whatsapp_first"
+  callMode?: "call_now" | "whatsapp_first" | "info_first" | "extended_screening"
+  /** Per-job campaign config */
+  campaignConfig?: {
+    nudgeHours?: number
+    escalateHours?: number
+    maxCallAttempts?: number
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -135,14 +141,79 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Candidate dedup: check if any candidates already have active participants for this job
+    // If so, update their screening_context and log the update (showcase it was refreshed)
+    const { data: existingParticipants } = await supabaseAdmin
+      .from("phone_screening_participants")
+      .select("id, candidate_id, status, screening_context")
+      .eq("job_id", jobId)
+      .in("candidate_id", candidateIds)
+      .in("status", ["pending", "whatsapp_sent", "whatsapp_delivered", "whatsapp_read",
+                      "info_requested", "info_received", "interested", "call_scheduled",
+                      "scheduled", "calling", "in_progress"])
+
+    const dedupedCandidateIds = new Set<string>()
+    const dedupUpdates: Array<{ candidateId: string; participantId: string }> = []
+    for (const ep of existingParticipants || []) {
+      dedupedCandidateIds.add(ep.candidate_id)
+      dedupUpdates.push({ candidateId: ep.candidate_id, participantId: ep.id })
+    }
+
+    // Log dedup updates (showcase they were refreshed)
+    if (dedupUpdates.length > 0) {
+      logger.info("Candidate dedup: found existing active participants", {
+        jobId,
+        dedupedCount: dedupUpdates.length,
+        candidateIds: dedupUpdates.map(d => d.candidateId),
+      })
+      // Update their screening_context with fresh job data
+      for (const du of dedupUpdates) {
+        await supabaseAdmin
+          .from("phone_screening_participants")
+          .update({
+            screening_context: {
+              jobTitle: job.title,
+              clientName: job.client_name || client?.name || "",
+              origin: fallbackOrigin,
+              salaryRange: `${job.salary_min || "?"} - ${job.salary_max || "?"}`,
+              mustHaveSkills: Array.isArray(job.skills_must_have) ? job.skills_must_have.join(", ") : job.skills_must_have || "",
+              experienceRange: `${job.experience_min_years ?? 0}-${job.experience_max_years ?? "any"}`,
+              location: job.city || "",
+              dedupedAt: now,
+            },
+            updated_at: now,
+          })
+          .eq("id", du.participantId)
+      }
+    }
+
+    // Filter out deduped candidates from triggering new calls (they already have active participants)
+    const freshCandidateIds = candidateIds.filter(id => !dedupedCandidateIds.has(id))
+    const freshCandidates = (candidates || []).filter(c => freshCandidateIds.includes(c.id))
+
+    if (freshCandidateIds.length === 0) {
+      // All candidates already have active participants — return dedup info
+      return NextResponse.json({
+        campaignId: null,
+        totalCandidates: candidateIds.length,
+        callsTriggered: 0,
+        callsFailed: 0,
+        nudgeSent: 0,
+        dedupedCount: dedupUpdates.length,
+        dedupedCandidateIds: dedupUpdates.map(d => d.candidateId),
+        message: "All candidates already have active screening participants (updated context)",
+      })
+    }
+
     const result = await orchestrateScreening({
       job,
       client,
-      candidates: (candidates || []) as any[],
+      candidates: freshCandidates as any[],
       originByCandidate,
       fallbackOrigin,
       createdBy: ctx.authUser.id,
       callMode,
+      campaignConfig: body.campaignConfig,
     })
 
     // Log ai_screen_started for all candidates that were triggered

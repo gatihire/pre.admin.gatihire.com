@@ -1,14 +1,15 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import {
   Award,
   BrainCircuit,
   Briefcase,
   Building2,
   CheckCircle2,
-  ChevronDown,
   Clock,
+  DollarSign,
   Download,
   ExternalLink,
   Eye,
@@ -24,6 +25,7 @@ import {
   ShieldCheck,
   Sparkles,
   ThumbsUp,
+  TrendingUp,
   X,
   XCircle,
 } from "lucide-react"
@@ -75,6 +77,13 @@ interface ShareCandidate {
   screeningScore: number | null
   screeningVerdict: string | null
   aiFit: AiFit | null
+  // WhatsApp-collected screening info
+  currentCtc: string | null
+  expectedCtc: string | null
+  noticePeriod: string | null
+  locationPreference: string | null
+  willingToRelocate: boolean | null
+  reasonForSwitching: string | null
   status: "pending" | "approved" | "rejected"
   decidedAt: string | null
   decisionNote: string | null
@@ -150,7 +159,7 @@ function ShortlistView({ token }: { token: string | null }) {
   const [candidates, setCandidates] = useState<ShareCandidate[]>([])
   const [busyId, setBusyId] = useState<string | null>(null)
   const [actionError, setActionError] = useState("")
-  const [openCandidateId, setOpenCandidateId] = useState<string | null>(null)
+  const [selectedCandidate, setSelectedCandidate] = useState<ShareCandidate | null>(null)
 
   const load = useCallback(async (t: string) => {
     setState("loading")
@@ -209,11 +218,6 @@ function ShortlistView({ token }: { token: string | null }) {
       }
     },
     [token]
-  )
-
-  const openCandidate = useMemo(
-    () => candidates.find(c => c.id === openCandidateId) || null,
-    [candidates, openCandidateId]
   )
 
   const pendingCount = useMemo(() => candidates.filter(c => c.status === "pending").length, [candidates])
@@ -323,8 +327,9 @@ function ShortlistView({ token }: { token: string | null }) {
                     candidate={candidate}
                     rank={idx + 1}
                     busy={busyId === candidate.id}
+                    token={token}
                     onDecide={decide}
-                    onOpen={() => setOpenCandidateId(candidate.id)}
+                    onViewProfile={setSelectedCandidate}
                   />
                 ))}
               </ul>
@@ -337,16 +342,18 @@ function ShortlistView({ token }: { token: string | null }) {
         )}
       </div>
 
-      {/* Full profile drawer */}
-      {openCandidate && (
-        <ProfileDrawer
-          candidate={openCandidate}
-          token={token}
-          busy={busyId === openCandidate.id}
-          onClose={() => setOpenCandidateId(null)}
-          onDecide={decide}
-        />
-      )}
+      {/* Profile Modal */}
+      <AnimatePresence>
+        {selectedCandidate && (
+          <ProfileModal
+            candidate={selectedCandidate}
+            busy={busyId === selectedCandidate.id}
+            token={token}
+            onDecide={decide}
+            onClose={() => setSelectedCandidate(null)}
+          />
+        )}
+      </AnimatePresence>
     </main>
   )
 }
@@ -380,14 +387,16 @@ function ShortlistCard({
   candidate,
   rank,
   busy,
+  token,
   onDecide,
-  onOpen,
+  onViewProfile,
 }: {
   candidate: ShareCandidate
   rank: number
   busy: boolean
+  token: string | null
   onDecide: (id: string, d: "approved" | "rejected", note?: string) => void
-  onOpen: () => void
+  onViewProfile: (c: ShareCandidate) => void
 }) {
   const verdict = candidate.screeningVerdict ? VERDICT_META[candidate.screeningVerdict] : undefined
   const matchPct = candidate.matchScore != null ? Math.round(candidate.matchScore * 100) : null
@@ -415,7 +424,7 @@ function ShortlistCard({
       <div className="p-4 sm:p-5 pl-5 sm:pl-6">
         <div className="flex items-start gap-4">
           {/* Avatar */}
-          <button onClick={onOpen} className="relative shrink-0 focus:outline-none" aria-label="View profile">
+          <div className="relative shrink-0">
             <div className={`grid h-12 w-12 place-items-center rounded-xl text-sm font-bold shadow-sm ${
               decided
                 ? candidate.status === "approved"
@@ -430,12 +439,12 @@ function ShortlistCard({
                 {rank}
               </span>
             )}
-          </button>
+          </div>
 
           {/* Main info */}
-          <button onClick={onOpen} className="min-w-0 flex-1 text-left focus:outline-none">
+          <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <h2 className="text-base font-semibold text-gray-900 group-hover:text-indigo-700 transition-colors">
+              <h2 className="text-base font-semibold text-gray-900">
                 {candidate.name}
               </h2>
               {verdict && (
@@ -472,15 +481,49 @@ function ShortlistCard({
               )}
             </div>
 
+            {/* WhatsApp-collected screening info */}
+            {(candidate.currentCtc || candidate.expectedCtc || candidate.noticePeriod || candidate.willingToRelocate != null) && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {candidate.currentCtc && candidate.expectedCtc && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                    <DollarSign className="h-3 w-3" />
+                    {candidate.currentCtc} → {candidate.expectedCtc}
+                  </span>
+                )}
+                {candidate.currentCtc && !candidate.expectedCtc && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                    <DollarSign className="h-3 w-3" />
+                    {candidate.currentCtc}
+                  </span>
+                )}
+                {candidate.noticePeriod && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                    <Clock className="h-3 w-3" />
+                    {candidate.noticePeriod}
+                  </span>
+                )}
+                {candidate.willingToRelocate != null && (
+                  <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                    candidate.willingToRelocate
+                      ? "border-blue-200 bg-blue-50 text-blue-700"
+                      : "border-gray-200 bg-gray-50 text-gray-500"
+                  }`}>
+                    <MapPin className="h-3 w-3" />
+                    {candidate.willingToRelocate ? "Willing to relocate" : "Not willing"}
+                  </span>
+                )}
+              </div>
+            )}
+
             {fitLine && (
               <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-gray-500">
                 <Sparkles className="mr-1 inline h-3 w-3 text-violet-500 align-[-1px]" />
                 {fitLine}
               </p>
             )}
-          </button>
+          </div>
 
-          {/* Right column: score + actions */}
+          {/* Right column: score + action */}
           <div className="flex shrink-0 flex-col items-end gap-2.5">
             {matchPct != null && (
               <div className="flex items-center gap-1.5">
@@ -490,34 +533,18 @@ function ShortlistCard({
             )}
 
             {!decided ? (
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => onDecide(candidate.id, "approved")}
-                  disabled={busy}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-50"
-                >
-                  {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                  Approve
-                </button>
-                <RejectButton candidate={candidate} busy={busy} onReject={onDecide} />
-              </div>
+              <button
+                onClick={() => onViewProfile(candidate)}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 transition-colors"
+              >
+                <Eye className="h-3.5 w-3.5" /> View profile
+              </button>
             ) : (
               <button
-                onClick={onOpen}
+                onClick={() => onViewProfile(candidate)}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-gray-300 transition-colors"
               >
-                <FileText className="h-3.5 w-3.5" />
-                View profile
-              </button>
-            )}
-
-            {!decided && (
-              <button
-                onClick={onOpen}
-                className="inline-flex items-center gap-1 text-[11px] font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
-              >
-                View full profile & resume
-                <ChevronDown className="h-3 w-3 -rotate-90" />
+                <FileText className="h-3.5 w-3.5" /> View profile
               </button>
             )}
           </div>
@@ -527,7 +554,7 @@ function ShortlistCard({
   )
 }
 
-function RejectButton({
+function InlineRejectButton({
   candidate,
   busy,
   onReject,
@@ -544,9 +571,9 @@ function RejectButton({
       <button
         onClick={() => setOpen(v => !v)}
         disabled={busy}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+        className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
       >
-        <XCircle className="h-3.5 w-3.5" />
+        <XCircle className="h-4 w-4" />
         Pass
       </button>
 
@@ -578,421 +605,6 @@ function RejectButton({
   )
 }
 
-/* ------------------------------ Drawer ------------------------------ */
-
-function ProfileDrawer({
-  candidate,
-  token,
-  busy,
-  onClose,
-  onDecide,
-}: {
-  candidate: ShareCandidate
-  token: string | null
-  busy: boolean
-  onClose: () => void
-  onDecide: (id: string, d: "approved" | "rejected", note?: string) => void
-}) {
-  const [tab, setTab] = useState<"overview" | "resume">("overview")
-  const [resumeUrl, setResumeUrl] = useState<string | null>(null)
-  const [resumeLoading, setResumeLoading] = useState(false)
-  const [resumeError, setResumeError] = useState("")
-  const [noteOpen, setNoteOpen] = useState(false)
-
-  useEffect(() => {
-    document.body.style.overflow = "hidden"
-    return () => {
-      document.body.style.overflow = ""
-    }
-  }, [])
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose()
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [onClose])
-
-  const isPdf = useMemo(() => {
-    if (!candidate.fileName) return true
-    return /\.pdf($|\?)/i.test(candidate.fileName) || !/\.(docx?|rtf|txt)$/i.test(candidate.fileName)
-  }, [candidate.fileName])
-
-  const loadResume = useCallback(async () => {
-    if (!token || resumeUrl || resumeLoading) return
-    if (!candidate.hasResumeFile) return
-    setResumeLoading(true)
-    setResumeError("")
-    try {
-      const res = await fetch(
-        `/api/public/shortlist/${encodeURIComponent(token)}/candidates/${encodeURIComponent(candidate.id)}/resume`
-      )
-      const data = await res.json()
-      if (!res.ok) {
-        setResumeError(data?.error || "Resume file is not available.")
-        return
-      }
-      setResumeUrl(data.url)
-    } catch {
-      setResumeError("Could not load the resume file.")
-    } finally {
-      setResumeLoading(false)
-    }
-  }, [token, candidate.id, candidate.hasResumeFile, resumeUrl, resumeLoading])
-
-  const openResumeTab = useCallback(() => {
-    setTab("resume")
-    loadResume()
-  }, [loadResume])
-
-  const hasText = Boolean(candidate.resumeText?.trim())
-
-  return (
-    <div className="fixed inset-0 z-50" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-gray-900/50 backdrop-blur-[2px]" onClick={onClose} />
-
-      <div className="absolute inset-y-0 right-0 flex w-full max-w-2xl flex-col bg-white shadow-2xl sm:rounded-l-3xl animate-in slide-in-from-right duration-300 overflow-hidden">
-        {/* Drawer header */}
-        <div className="relative shrink-0 border-b border-gray-200 bg-gradient-to-r from-indigo-50 via-violet-50 to-white px-5 py-4 sm:px-6">
-          <button
-            onClick={onClose}
-            className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full bg-white/80 text-gray-500 shadow-sm hover:bg-white hover:text-gray-800 transition-colors"
-            aria-label="Close profile"
-          >
-            <X className="h-4 w-4" />
-          </button>
-
-          <div className="flex items-start gap-3.5 pr-10">
-            <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 text-lg font-bold text-white shadow-md">
-              {initials(candidate.name)}
-            </div>
-            <div className="min-w-0">
-              <h2 className="truncate text-lg font-bold text-gray-900">{candidate.name}</h2>
-              <p className="truncate text-sm text-gray-600">
-                {[candidate.currentRole, candidate.currentCompany].filter(Boolean).join(" · ") || "—"}
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                {candidate.matchScore != null && (
-                  <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${scoreColorClass(Math.round(candidate.matchScore * 100)).bg} ${scoreColorClass(Math.round(candidate.matchScore * 100)).border} ${scoreColorClass(Math.round(candidate.matchScore * 100)).text}`}>
-                    <Award className="h-3 w-3" />
-                    {Math.round(candidate.matchScore * 100)}% match
-                  </span>
-                )}
-                {candidate.screeningVerdict && VERDICT_META[candidate.screeningVerdict] && (
-                  <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${VERDICT_META[candidate.screeningVerdict].className}`}>
-                    {VERDICT_META[candidate.screeningVerdict].label}
-                  </span>
-                )}
-                {candidate.screeningScore != null && (
-                  <span className="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[11px] text-gray-600">
-                    AI screen {candidate.screeningScore}/10
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Contact strip */}
-          {(candidate.email || candidate.phone) && (
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-              {candidate.email && (
-                <a href={`mailto:${candidate.email}`} className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2.5 py-1 text-gray-600 hover:border-indigo-300 hover:text-indigo-700 transition-colors">
-                  <Mail className="h-3 w-3" />
-                  {candidate.email}
-                </a>
-              )}
-              {candidate.phone && (
-                <a href={`tel:${candidate.phone}`} className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2.5 py-1 text-gray-600 hover:border-indigo-300 hover:text-indigo-700 transition-colors">
-                  <Phone className="h-3 w-3" />
-                  {candidate.phone}
-                </a>
-              )}
-            </div>
-          )}
-
-          {/* Tabs */}
-          <div className="mt-4 flex gap-1">
-            <DrawerTab active={tab === "overview"} onClick={() => setTab("overview")} icon={Eye} label="Overview" />
-            <DrawerTab
-              active={tab === "resume"}
-              onClick={openResumeTab}
-              icon={FileText}
-              label="Resume"
-              badge={!candidate.hasResumeFile && !hasText ? "N/A" : undefined}
-            />
-          </div>
-        </div>
-
-        {/* Drawer body */}
-        <div className="flex-1 overflow-y-auto bg-gray-50/60">
-          {tab === "overview" ? (
-            <div className="space-y-5 p-5 sm:p-6">
-              {/* Quick facts */}
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-                <FactTile icon={Briefcase} label="Experience" value={candidate.totalExperience != null && candidate.totalExperience > 0 ? `${candidate.totalExperience} yrs` : "—"} />
-                <FactTile icon={MapPin} label="Location" value={candidate.location || "—"} />
-                <FactTile icon={Building2} label="Current" value={candidate.currentCompany || "—"} />
-                <FactTile icon={GraduationCap} label="Target role" value={candidate.desiredRole || candidate.currentRole || "—"} />
-              </div>
-
-              {/* Summary */}
-              {candidate.summary && (
-                <Section icon={MessageSquare} title="Professional summary">
-                  <p className="whitespace-pre-line text-sm leading-relaxed text-gray-600">{candidate.summary}</p>
-                </Section>
-              )}
-
-              {/* Skills */}
-              {(candidate.technicalSkills.length > 0 || candidate.softSkills.length > 0) && (
-                <Section icon={Sparkles} title="Skills">
-                  <div className="space-y-3">
-                    {candidate.technicalSkills.length > 0 && (
-                      <div>
-                        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Technical</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {candidate.technicalSkills.map((s, i) => (
-                            <span key={i} className="rounded-lg border border-indigo-100 bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700">
-                              {s}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {candidate.softSkills.length > 0 && (
-                      <div>
-                        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Strengths</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {candidate.softSkills.map((s, i) => (
-                            <span key={i} className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600">
-                              {s}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </Section>
-              )}
-
-              {/* AI Insight */}
-              {candidate.aiFit && (
-                <div className="overflow-hidden rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-indigo-50 p-5">
-                  <div className="flex items-center gap-2">
-                    <BrainCircuit className="h-4 w-4 text-violet-600" />
-                    <h3 className="text-sm font-bold text-violet-900">Why we shortlisted this candidate</h3>
-                    {candidate.aiFit.score != null && (
-                      <span className="ml-auto rounded-full bg-violet-600 px-2.5 py-0.5 text-xs font-bold text-white">
-                        {Math.round(candidate.aiFit.score)}% fit
-                      </span>
-                    )}
-                  </div>
-                  {candidate.aiFit.summary && (
-                    <p className="mt-2.5 text-sm leading-relaxed text-violet-900/80">{candidate.aiFit.summary}</p>
-                  )}
-                  {(candidate.aiFit.pros.length > 0 || candidate.aiFit.misses.length > 0) && (
-                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                      {candidate.aiFit.pros.length > 0 && (
-                        <div>
-                          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Strengths</p>
-                          <ul className="space-y-1.5">
-                            {candidate.aiFit.pros.map((p, i) => (
-                              <li key={i} className="flex items-start gap-1.5 text-xs text-gray-700">
-                                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                                {p}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      {candidate.aiFit.misses.length > 0 && (
-                        <div>
-                          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-orange-700">Gaps to probe</p>
-                          <ul className="space-y-1.5">
-                            {candidate.aiFit.misses.map((m, i) => (
-                              <li key={i} className="flex items-start gap-1.5 text-xs text-gray-700">
-                                <Search className="mt-0.5 h-3.5 w-3.5 shrink-0 text-orange-400" />
-                                {m}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {candidate.aiFit.interviewProbes.length > 0 && (
-                    <div className="mt-4 rounded-xl bg-white/70 p-3">
-                      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-violet-700">Suggested interview questions</p>
-                      <ol className="list-decimal space-y-1 pl-4 text-xs text-gray-600">
-                        {candidate.aiFit.interviewProbes.map((q, i) => (
-                          <li key={i}>{q}</li>
-                        ))}
-                      </ol>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Decision history */}
-              {candidate.decisionNote && candidate.status === "rejected" && (
-                <div className="rounded-xl border border-gray-200 bg-white p-4 text-xs text-gray-500">
-                  <span className="font-semibold text-gray-700">Your note:</span> {candidate.decisionNote}
-                </div>
-              )}
-            </div>
-          ) : (
-            /* ------------------------- Resume tab ------------------------- */
-            <div className="p-5 sm:p-6">
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                <span className="text-xs font-medium text-gray-500">
-                  {candidate.fileName || (hasText ? "Extracted resume text" : "No resume")}
-                </span>
-                {resumeUrl && (
-                  <>
-                    <a
-                      href={resumeUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-indigo-300 hover:text-indigo-700 transition-colors"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      Open in new tab
-                    </a>
-                    <a
-                      href={resumeUrl}
-                      download={candidate.fileName || "resume"}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors"
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                      Download
-                    </a>
-                  </>
-                )}
-              </div>
-
-              {resumeLoading && (
-                <div className="flex h-96 flex-col items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white text-gray-400">
-                  <Loader2 className="h-5 w-5 animate-spin text-indigo-500" />
-                  <span className="text-sm">Loading resume…</span>
-                </div>
-              )}
-
-              {!resumeLoading && resumeError && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-                  {resumeError}
-                  {hasText && <p className="mt-1 text-xs text-amber-700">You can still read the extracted resume text below.</p>}
-                </div>
-              )}
-
-              {!resumeLoading && !resumeError && resumeUrl && isPdf && (
-                <iframe
-                  src={resumeUrl}
-                  title={`${candidate.name} — resume`}
-                  className="h-[calc(100vh-19rem)] min-h-[28rem] w-full rounded-xl border border-gray-200 bg-white"
-                />
-              )}
-
-              {!resumeLoading && !resumeError && resumeUrl && !isPdf && hasText && (
-                <div className="space-y-3">
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
-                    Word documents can&apos;t be previewed inline — use the buttons above to open or download the original.
-                  </div>
-                  <TextResume content={candidate.resumeText} />
-                </div>
-              )}
-
-              {!resumeLoading && !resumeError && !resumeUrl && hasText && (
-                <TextResume content={candidate.resumeText} />
-              )}
-
-              {!resumeLoading && !hasText && !resumeUrl && !resumeError && (
-                <div className="flex h-96 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-gray-300 bg-white text-gray-400">
-                  <FileText className="h-8 w-8" />
-                  <span className="text-sm">No resume attached for this candidate.</span>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Sticky footer actions */}
-        <div className="shrink-0 border-t border-gray-200 bg-white px-5 py-3.5 sm:px-6">
-          {candidate.status === "pending" ? (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => onDecide(candidate.id, "approved")}
-                disabled={busy}
-                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-50"
-              >
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                Approve — move to interview
-              </button>
-              <div className="relative">
-                <button
-                  onClick={() => setNoteOpen(v => !v)}
-                  disabled={busy}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
-                >
-                  <XCircle className="h-4 w-4" />
-                  Pass
-                </button>
-                {noteOpen && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setNoteOpen(false)} />
-                    <PassNotePopover
-                      onSubmit={(note) => {
-                        onDecide(candidate.id, "rejected", note)
-                        setNoteOpen(false)
-                      }}
-                    />
-                  </>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className={`flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold ${
-              candidate.status === "approved"
-                ? "bg-emerald-50 text-emerald-700"
-                : "bg-gray-100 text-gray-500"
-            }`}>
-              {candidate.status === "approved" ? (
-                <><CheckCircle2 className="h-4 w-4" /> Approved on {formatDate(candidate.decidedAt)} — our team will coordinate next steps</>
-              ) : (
-                <><XCircle className="h-4 w-4" /> Passed on {formatDate(candidate.decidedAt)}</>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function DrawerTab({
-  active,
-  onClick,
-  icon: Icon,
-  label,
-  badge,
-}: {
-  active: boolean
-  onClick: () => void
-  icon: React.ComponentType<{ className?: string }>
-  label: string
-  badge?: string
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-colors ${
-        active ? "bg-gray-900 text-white shadow-sm" : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
-      }`}
-    >
-      <Icon className="h-3.5 w-3.5" />
-      {label}
-      {badge && <span className="rounded-full bg-red-100 px-1.5 text-[10px] font-bold text-red-600">{badge}</span>}
-    </button>
-  )
-}
-
 function FactTile({
   icon: Icon,
   label,
@@ -1010,6 +622,360 @@ function FactTile({
       </div>
       <p className="mt-1 truncate text-sm font-medium text-gray-800" title={value}>{value}</p>
     </div>
+  )
+}
+
+function ProfileModal({
+  candidate,
+  busy,
+  token,
+  onDecide,
+  onClose,
+}: {
+  candidate: ShareCandidate
+  busy: boolean
+  token: string | null
+  onDecide: (id: string, d: "approved" | "rejected", note?: string) => void
+  onClose: () => void
+}) {
+  const [resumeUrl, setResumeUrl] = useState<string | null>(null)
+  const [resumeLoading, setResumeLoading] = useState(false)
+  const [resumeError, setResumeError] = useState("")
+  const [rejectNote, setRejectNote] = useState("")
+  const [showReject, setShowReject] = useState(false)
+
+  const isPdf = useMemo(() => {
+    if (!candidate.fileName) return true
+    return /\.pdf($|\?)/i.test(candidate.fileName) || !/\.(docx?|rtf|txt)$/i.test(candidate.fileName)
+  }, [candidate.fileName])
+
+  const hasText = Boolean(candidate.resumeText?.trim())
+
+  useEffect(() => {
+    if (!token || !candidate.hasResumeFile || resumeUrl || resumeLoading) return
+    let cancelled = false
+    ;(async () => {
+      setResumeLoading(true)
+      setResumeError("")
+      try {
+        const res = await fetch(
+          `/api/public/shortlist/${encodeURIComponent(token)}/candidates/${encodeURIComponent(candidate.id)}/resume`
+        )
+        const data = await res.json()
+        if (!cancelled) {
+          if (!res.ok) setResumeError(data?.error || "Resume not available.")
+          else setResumeUrl(data.url)
+        }
+      } catch {
+        if (!cancelled) setResumeError("Could not load resume.")
+      } finally {
+        if (!cancelled) setResumeLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [token, candidate.id, candidate.hasResumeFile])
+
+  const verdict = candidate.screeningVerdict ? VERDICT_META[candidate.screeningVerdict] : undefined
+  const matchPct = candidate.matchScore != null ? Math.round(candidate.matchScore * 100) : null
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm p-4 pt-8 pb-8"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <motion.div
+        initial={{ scale: 0.96, opacity: 0, y: 12 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.96, opacity: 0, y: 12 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+        className="relative w-full max-w-2xl rounded-3xl bg-white shadow-2xl border border-gray-200 overflow-hidden"
+      >
+        {/* Header */}
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white/95 backdrop-blur px-6 py-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-indigo-100 to-violet-100 text-sm font-bold text-indigo-700 shrink-0">
+              {initials(candidate.name)}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-gray-900 truncate">{candidate.name}</h2>
+                {verdict && (
+                  <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium shrink-0 ${verdict.className}`}>
+                    <Sparkles className="h-2.5 w-2.5" />
+                    {verdict.label}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 truncate">
+                {[candidate.currentRole, candidate.currentCompany].filter(Boolean).join(" · ")}
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} className="shrink-0 rounded-lg p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto">
+          {/* Score + quick facts row */}
+          <div className="flex items-start gap-4">
+            {matchPct != null && (
+              <div className="shrink-0">
+                <ScoreRing pct={matchPct} />
+                <p className="mt-1 text-center text-[10px] font-medium text-gray-400">JD fit</p>
+              </div>
+            )}
+            <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4">
+              <FactTile icon={Briefcase} label="Experience" value={candidate.totalExperience != null && candidate.totalExperience > 0 ? `${candidate.totalExperience} yrs` : "—"} />
+              <FactTile icon={MapPin} label="Location" value={candidate.location || "—"} />
+              <FactTile icon={Building2} label="Current" value={candidate.currentCompany || "—"} />
+              <FactTile icon={GraduationCap} label="Target" value={candidate.desiredRole || candidate.currentRole || "—"} />
+            </div>
+          </div>
+
+          {/* Contact */}
+          {(candidate.email || candidate.phone) && (
+            <div className="flex flex-wrap items-center gap-2">
+              {candidate.email && (
+                <a href={`mailto:${candidate.email}`} className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-600 hover:border-indigo-300 hover:text-indigo-700 transition-colors">
+                  <Mail className="h-3 w-3" /> {candidate.email}
+                </a>
+              )}
+              {candidate.phone && (
+                <a href={`tel:${candidate.phone}`} className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-600 hover:border-indigo-300 hover:text-indigo-700 transition-colors">
+                  <Phone className="h-3 w-3" /> {candidate.phone}
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* WhatsApp screening info */}
+          {(candidate.currentCtc || candidate.expectedCtc || candidate.noticePeriod || candidate.willingToRelocate != null || candidate.reasonForSwitching) && (
+            <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-4 space-y-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Screening info</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {candidate.currentCtc && <FactTile icon={DollarSign} label="Current CTC" value={candidate.currentCtc} />}
+                {candidate.expectedCtc && <FactTile icon={TrendingUp} label="Expected CTC" value={candidate.expectedCtc} />}
+                {candidate.noticePeriod && <FactTile icon={Clock} label="Notice" value={candidate.noticePeriod} />}
+                {candidate.willingToRelocate != null && <FactTile icon={MapPin} label="Relocate" value={candidate.willingToRelocate ? "Yes" : "No"} />}
+              </div>
+              {candidate.reasonForSwitching && (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1">Reason for switching</p>
+                  <p className="text-sm text-gray-700">{candidate.reasonForSwitching}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Summary */}
+          {candidate.summary && (
+            <Section icon={MessageSquare} title="Professional summary">
+              <p className="whitespace-pre-line text-sm leading-relaxed text-gray-600">{candidate.summary}</p>
+            </Section>
+          )}
+
+          {/* Skills */}
+          {(candidate.technicalSkills.length > 0 || candidate.softSkills.length > 0) && (
+            <Section icon={Sparkles} title="Skills">
+              <div className="space-y-3">
+                {candidate.technicalSkills.length > 0 && (
+                  <div>
+                    <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Technical</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {candidate.technicalSkills.map((s, i) => (
+                        <span key={i} className="rounded-lg border border-indigo-100 bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700">{s}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {candidate.softSkills.length > 0 && (
+                  <div>
+                    <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Strengths</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {candidate.softSkills.map((s, i) => (
+                        <span key={i} className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600">{s}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Section>
+          )}
+
+          {/* AI Insight */}
+          {candidate.aiFit && (
+            <div className="overflow-hidden rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-indigo-50 p-5">
+              <div className="flex items-center gap-2">
+                <BrainCircuit className="h-4 w-4 text-violet-600" />
+                <h3 className="text-sm font-bold text-violet-900">Why we shortlisted this candidate</h3>
+                {candidate.aiFit.score != null && (
+                  <span className="ml-auto rounded-full bg-violet-600 px-2.5 py-0.5 text-xs font-bold text-white">
+                    {Math.round(candidate.aiFit.score)}% fit
+                  </span>
+                )}
+              </div>
+              {candidate.aiFit.summary && (
+                <p className="mt-2.5 text-sm leading-relaxed text-violet-900/80">{candidate.aiFit.summary}</p>
+              )}
+              {(candidate.aiFit.pros.length > 0 || candidate.aiFit.misses.length > 0) && (
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  {candidate.aiFit.pros.length > 0 && (
+                    <div>
+                      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Strengths</p>
+                      <ul className="space-y-1.5">
+                        {candidate.aiFit.pros.map((p, i) => (
+                          <li key={i} className="flex items-start gap-1.5 text-xs text-gray-700">
+                            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" /> {p}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {candidate.aiFit.misses.length > 0 && (
+                    <div>
+                      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-orange-700">Gaps to probe</p>
+                      <ul className="space-y-1.5">
+                        {candidate.aiFit.misses.map((m, i) => (
+                          <li key={i} className="flex items-start gap-1.5 text-xs text-gray-700">
+                            <Search className="mt-0.5 h-3.5 w-3.5 shrink-0 text-orange-400" /> {m}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+              {candidate.aiFit.interviewProbes.length > 0 && (
+                <div className="mt-4 rounded-xl bg-white/70 p-3">
+                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-violet-700">Suggested interview questions</p>
+                  <ol className="list-decimal space-y-1 pl-4 text-xs text-gray-600">
+                    {candidate.aiFit.interviewProbes.map((q, i) => <li key={i}>{q}</li>)}
+                  </ol>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Resume */}
+          <Section icon={FileText} title="Resume">
+            {candidate.hasResumeFile ? (
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-medium text-gray-500">{candidate.fileName || "Resume"}</span>
+                  {resumeUrl && (
+                    <>
+                      <a href={resumeUrl} target="_blank" rel="noopener noreferrer" className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-600 hover:border-indigo-300 hover:text-indigo-700 transition-colors">
+                        <ExternalLink className="h-3 w-3" /> Open
+                      </a>
+                      <a href={resumeUrl} download={candidate.fileName || "resume"} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-indigo-700 transition-colors">
+                        <Download className="h-3 w-3" /> Download
+                      </a>
+                    </>
+                  )}
+                </div>
+                {resumeLoading && (
+                  <div className="flex h-48 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-400">
+                    <Loader2 className="h-4 w-4 animate-spin text-indigo-500 mr-2" />
+                    <span className="text-xs">Loading resume…</span>
+                  </div>
+                )}
+                {!resumeLoading && resumeError && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    {resumeError}
+                    {hasText && <p className="mt-1 text-[11px] text-amber-700">You can read the extracted text below.</p>}
+                  </div>
+                )}
+                {!resumeLoading && !resumeError && resumeUrl && isPdf && (
+                  <iframe src={resumeUrl} title={`${candidate.name} — resume`} className="h-[500px] w-full rounded-xl border border-gray-200 bg-white" />
+                )}
+                {!resumeLoading && !resumeError && resumeUrl && !isPdf && hasText && (
+                  <div className="space-y-2">
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                      Word documents cannot be previewed inline — use the buttons above.
+                    </div>
+                    <TextResume content={candidate.resumeText} />
+                  </div>
+                )}
+                {!resumeLoading && !resumeError && !resumeUrl && hasText && (
+                  <TextResume content={candidate.resumeText} />
+                )}
+              </div>
+            ) : hasText ? (
+              <TextResume content={candidate.resumeText} />
+            ) : (
+              <div className="flex h-32 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-white text-gray-400">
+                <FileText className="h-6 w-6" />
+                <span className="text-xs">No resume attached</span>
+              </div>
+            )}
+          </Section>
+        </div>
+
+        {/* Footer — approve / pass */}
+        {candidate.status === "pending" && (
+          <div className="sticky bottom-0 border-t border-gray-100 bg-white px-6 py-4">
+            {!showReject ? (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => { onDecide(candidate.id, "approved"); onClose() }}
+                  disabled={busy}
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  Approve — move to interview
+                </button>
+                <button
+                  onClick={() => setShowReject(true)}
+                  disabled={busy}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-5 py-3 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+                >
+                  <XCircle className="h-4 w-4" /> Pass
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-gray-600">Reason for passing (optional)</label>
+                <textarea
+                  autoFocus
+                  rows={2}
+                  value={rejectNote}
+                  onChange={(e) => setRejectNote(e.target.value)}
+                  className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  placeholder="e.g. Salary mismatch, missing experience…"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { onDecide(candidate.id, "rejected", rejectNote.trim() || undefined); onClose() }}
+                    disabled={busy}
+                    className="flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+                  >
+                    Confirm pass
+                  </button>
+                  <button
+                    onClick={() => { setShowReject(false); setRejectNote("") }}
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Decision history */}
+        {candidate.status === "rejected" && candidate.decisionNote && (
+          <div className="border-t border-gray-100 bg-gray-50 px-6 py-3 text-xs text-gray-500">
+            <span className="font-semibold text-gray-700">Your note:</span> {candidate.decisionNote}
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
   )
 }
 
@@ -1039,28 +1005,6 @@ function TextResume({ content }: { content: string }) {
       <pre className="whitespace-pre-wrap break-words font-sans text-[13px] leading-relaxed text-gray-700">
         {content}
       </pre>
-    </div>
-  )
-}
-
-function PassNotePopover({ onSubmit }: { onSubmit: (note?: string) => void }) {
-  const ref = useRef<HTMLTextAreaElement>(null)
-  return (
-    <div className="absolute bottom-full right-0 z-20 mb-2 w-72 rounded-xl border border-gray-200 bg-white p-4 shadow-xl">
-      <label className="block text-xs font-medium text-gray-600">Reason (optional)</label>
-      <textarea
-        ref={ref}
-        autoFocus
-        rows={3}
-        className="mt-1.5 w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-        placeholder="e.g. Salary expectations, missing experience…"
-      />
-      <button
-        onClick={() => onSubmit(ref.current?.value.trim() || undefined)}
-        className="mt-2 w-full rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
-      >
-        Confirm pass
-      </button>
     </div>
   )
 }
