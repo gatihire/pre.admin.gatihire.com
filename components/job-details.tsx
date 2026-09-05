@@ -98,6 +98,8 @@ export function JobDetails({ job, onBack, initialTab }: JobDetailsProps) {
   const [uploadOpen, setUploadOpen] = useState(false)
   const [clientDecisions, setClientDecisions] = useState<Record<string, string | null>>({})
   const [sourcingView, setSourcingView] = useState<"db_matches" | "juicebox">("db_matches")
+  const [missingFitCount, setMissingFitCount] = useState(0)
+  const [backfillRunning, setBackfillRunning] = useState(false)
 
   const [selectedFitScore, setSelectedFitScore] = useState<number | null>(null)
 
@@ -142,12 +144,30 @@ export function JobDetails({ job, onBack, initialTab }: JobDetailsProps) {
         setParticipants(data.participants || {})
         setFitScores(data.fitScores || {})
         setClientDecisions(data.clientDecisions || {})
+        const missing = data.missingFitCount || 0
+        setMissingFitCount(missing)
+        if (missing > 0 && !backfillRunning) {
+          runBackfill()
+        }
       }
     } catch {
       toast({ title: "Failed to load candidates", variant: "destructive" })
     } finally {
       setApplicationLoading(false)
     }
+  }
+
+  const runBackfill = async () => {
+    if (backfillRunning) return
+    setBackfillRunning(true)
+    try {
+      const res = await fetch(`/api/jobs/${job.id}/fit/backfill`, { method: "POST" })
+      const data = await res.json()
+      if (data.generated > 0) {
+        fetchPipeline({ force: true })
+      }
+    } catch { /* noop */ }
+    setBackfillRunning(false)
   }
 
   const goToTab = useCallback((tab: TabId) => {
@@ -202,6 +222,8 @@ export function JobDetails({ job, onBack, initialTab }: JobDetailsProps) {
             clientDecisions={clientDecisions}
             participants={participants}
             fitScores={fitScores}
+            missingFitCount={missingFitCount}
+            backfillRunning={backfillRunning}
             onStageSelect={selectStage}
             onCallSubFilterChange={setCandidateSubFilter}
             onStageChange={updateStatus}

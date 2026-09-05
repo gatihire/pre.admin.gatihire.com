@@ -78,11 +78,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return scoreB - scoreA
     })
 
+    const missingFitCount = applications.filter(a => !(a.candidate_id in fitScores)).length
+
     return NextResponse.json({
       applications,
       participants,
       fitScores,
       clientDecisions,
+      missingFitCount,
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 })

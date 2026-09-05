@@ -106,6 +106,8 @@ export interface CandidatesTabProps {
   clientDecisions?: Record<string, string | null> | null
   participants?: Record<string, any> | null
   fitScores?: Record<string, number | null> | null
+  missingFitCount?: number
+  backfillRunning?: boolean
   onStageSelect: (stage: string) => void
   onCallSubFilterChange?: (sub: string) => void
   onStageChange: (applicationId: string, newStage: string, rejectionReason?: string) => void
@@ -387,7 +389,7 @@ function formatRetryTime(nextRetryAt: string): string {
   return `${hours}h ${minutes % 60}m`
 }
 
-export function CandidatesTab({ jobId, applications, loading, activeStage, activeCallSubFilter, clientDecisions, participants: participantsProp, fitScores: fitScoresProp, onStageSelect, onCallSubFilterChange, onStageChange, onApplicationUpdated, onViewProfile, onRefresh }: CandidatesTabProps) {
+export function CandidatesTab({ jobId, applications, loading, activeStage, activeCallSubFilter, clientDecisions, participants: participantsProp, fitScores: fitScoresProp, missingFitCount = 0, backfillRunning = false, onStageSelect, onCallSubFilterChange, onStageChange, onApplicationUpdated, onViewProfile, onRefresh }: CandidatesTabProps) {
   const { toast } = useToast()
   const [pendingStageChange, setPendingStageChange] = useState<{
     applicationId: string; from: string; to: string; candidateName: string
@@ -1076,6 +1078,12 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
                     Clear
                   </button>
                 )}
+              </div>
+            )}
+            {backfillRunning && missingFitCount > 0 && (
+              <div className="flex items-center gap-2 px-4 py-2.5 mb-3 bg-purple-50 border border-purple-200 rounded-xl text-sm text-purple-700">
+                <BrainCircuit className="h-4 w-4 animate-pulse text-purple-500" />
+                <span className="font-medium">AI is analyzing {missingFitCount} candidate{missingFitCount > 1 ? "s" : ""} and ranking by fit score...</span>
               </div>
             )}
             <AnimatePresence mode="popLayout">
