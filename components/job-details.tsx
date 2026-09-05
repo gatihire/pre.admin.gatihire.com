@@ -96,11 +96,14 @@ export function JobDetails({ job, onBack, initialTab }: JobDetailsProps) {
   const [clientDecisions, setClientDecisions] = useState<Record<string, string | null>>({})
   const [sourcingView, setSourcingView] = useState<"db_matches" | "juicebox">("db_matches")
 
-  const handleViewProfile = (candidate: any, application?: Application, participant?: any, aiInfo?: { recommendation?: string; score?: number }) => {
+  const [selectedFitScore, setSelectedFitScore] = useState<number | null>(null)
+
+  const handleViewProfile = (candidate: any, application?: Application, participant?: any, aiInfo?: { recommendation?: string; score?: number }, fitScore?: number | null) => {
     setSelectedCandidate(candidate)
     setSelectedApplication(application || null)
     setSelectedParticipant(participant || null)
     setSelectedAiInfo(aiInfo || undefined)
+    setSelectedFitScore(fitScore ?? null)
   }
 
   const clientLabel = job.client_name || client?.name || null
@@ -343,6 +346,7 @@ export function JobDetails({ job, onBack, initialTab }: JobDetailsProps) {
           jobId={job.id}
           aiInfo={selectedAiInfo}
           participant={selectedParticipant}
+          fitScore={selectedFitScore}
         />
       )}
 

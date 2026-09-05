@@ -86,7 +86,7 @@ interface CandidateCardProps {
   onNudgeStart?: () => void
   onNudgeEnd?: () => void
   onSelect: (id: string) => void
-  onViewProfile: (candidate: any, application?: Application, participant?: any, aiInfo?: { recommendation?: string; score?: number }) => void
+  onViewProfile: (candidate: any, application?: Application, participant?: any, aiInfo?: { recommendation?: string; score?: number }, fitScore?: number | null) => void
   onViewResults?: (candidateId: string) => void
   onReviewInfo?: () => void
   onStageChange: (applicationId: string, from: string, to: string, candidateName: string) => void
@@ -108,7 +108,7 @@ export interface CandidatesTabProps {
   onCallSubFilterChange?: (sub: string) => void
   onStageChange: (applicationId: string, newStage: string, rejectionReason?: string) => void
   onApplicationUpdated: (updated: Application) => void
-  onViewProfile: (candidate: any, application?: Application, participant?: any, aiInfo?: { recommendation?: string; score?: number }) => void
+  onViewProfile: (candidate: any, application?: Application, participant?: any, aiInfo?: { recommendation?: string; score?: number }, fitScore?: number | null) => void
   onViewResults?: (candidateId: string) => void
   onRefresh: () => void
 }
@@ -1117,9 +1117,9 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
                     onNudgeStart={() => setNudgeBusyCandidate(app.candidate_id)}
                     onNudgeEnd={() => { setNudgeBusyCandidate(null); fetchParticipants(); onRefresh() }}
                     onSelect={() => toggleSelect(app.id)}
-                    onViewProfile={(c, app2, part, ai) => {
+                    onViewProfile={(c, app2, part, ai, fs) => {
                       setViewedCandidates(prev => new Set([...prev, app.candidate_id]))
-                      onViewProfile(c, app2, part, ai)
+                      onViewProfile(c, app2, part, ai, fs)
                     }}
                     onViewResults={(candidateId) => {
                       const pid = participantIdByCandidate[candidateId]
@@ -1354,7 +1354,7 @@ function CandidateCard({ application, jobId, callStatus, participant, aiInfo, cl
 
   const handleNextAction = () => {
     if (!nextAction) return
-    if (nextAction.action === "view_profile") onViewProfile(c, application, participant, aiInfo)
+    if (nextAction.action === "view_profile") onViewProfile(c, application, participant, aiInfo, fitScore)
     else if (nextAction.action === "view_results") onViewResults?.(application.candidate_id)
     else if (nextAction.action === "share") toast({ title: "Use Share Shortlist from job header" })
     else if (nextAction.action === "schedule") toast({ title: "Schedule interview from the interview section" })
@@ -1508,7 +1508,7 @@ function CandidateCard({ application, jobId, callStatus, participant, aiInfo, cl
               {/* Eye button */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-8 w-8 p-0 rounded-lg" onClick={() => onViewProfile(c, application, participant, aiInfo)}>
+                  <Button variant="outline" size="sm" className="h-8 w-8 p-0 rounded-lg" onClick={() => onViewProfile(c, application, participant, aiInfo, fitScore)}>
                     <Eye className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
@@ -1552,7 +1552,7 @@ function CandidateCard({ application, jobId, callStatus, participant, aiInfo, cl
                           ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" :
                         "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
                       }`}
-                      onClick={() => onViewProfile(c, application, participant, aiInfo)}
+                      onClick={() => onViewProfile(c, application, participant, aiInfo, fitScore)}
                     >
                       <BrainCircuit className="h-3.5 w-3.5" />
                       {fitScore}%
@@ -1707,7 +1707,7 @@ function CandidateCard({ application, jobId, callStatus, participant, aiInfo, cl
                           ))}
                         </ol>
                         {participant.generated_questions.split("\n").filter((q: string) => q.trim()).length > 3 && (
-                          <button className="text-[10px] text-blue-500 hover:text-blue-600 mt-1" onClick={() => onViewProfile(c, application, participant, aiInfo)}>
+                          <button className="text-[10px] text-blue-500 hover:text-blue-600 mt-1" onClick={() => onViewProfile(c, application, participant, aiInfo, fitScore)}>
                             View all →
                           </button>
                         )}

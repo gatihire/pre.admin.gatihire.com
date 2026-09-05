@@ -87,10 +87,11 @@ interface CandidateProfileSidebarProps {
   jobId?: string
   aiInfo?: { recommendation?: string; score?: number }
   participant?: any | null
+  fitScore?: number | null
 }
 
 export function CandidateProfileSidebar({
-  candidate: rawCandidate, application, isOpen, onClose, jobId, aiInfo, participant,
+  candidate: rawCandidate, application, isOpen, onClose, jobId, aiInfo, participant, fitScore,
 }: CandidateProfileSidebarProps) {
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState("screening")
@@ -180,6 +181,15 @@ export function CandidateProfileSidebar({
       .catch(() => {})
       .finally(() => setEnrichedLoading(false))
   }, [isOpen, rawCandidate])
+
+  // Auto-fetch fit analysis on mount if jobId is available
+  useEffect(() => {
+    if (!isOpen || !jobId || !c?.id || fitAnalysis) return
+    const timer = setTimeout(() => {
+      fetchFitAnalysis()
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [isOpen, jobId, c?.id])
 
   // Fetch resume preview URL
   useEffect(() => {
@@ -282,6 +292,18 @@ export function CandidateProfileSidebar({
                       : "bg-zinc-100 text-zinc-600 border-zinc-200"
                   }`}>
                     {Math.round(matchScore * 100)}% Match
+                  </span>
+                )}
+                {(fitScore ?? null) != null && (
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border ${
+                    (fitScore ?? 0) >= 70
+                      ? "bg-purple-50 text-purple-700 border-purple-200"
+                      : (fitScore ?? 0) >= 40
+                      ? "bg-amber-50 text-amber-700 border-amber-200"
+                      : "bg-rose-50 text-rose-600 border-rose-200"
+                  }`}>
+                    <BrainCircuit className="h-3 w-3" />
+                    {fitScore}%
                   </span>
                 )}
               </h3>

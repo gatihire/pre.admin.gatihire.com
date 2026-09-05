@@ -584,7 +584,7 @@ export class SupabaseCandidateService {
 
       // Fetch work experience data
       try {
-        const { data: workExperienceData, error: workExperienceError } = await supabase
+        const { data: workExperienceData, error: workExperienceError } = await supabaseAdmin
           .from('work_experience')
           .select('*')
           .eq('candidate_id', id)
@@ -607,7 +607,7 @@ export class SupabaseCandidateService {
 
       // Fetch education data
       try {
-        const { data: educationData, error: educationError } = await supabase
+        const { data: educationData, error: educationError } = await supabaseAdmin
           .from('education')
           .select('*')
           .eq('candidate_id', id)
