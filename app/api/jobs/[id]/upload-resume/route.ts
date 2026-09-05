@@ -278,21 +278,28 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .select()
       .single()
 
-    getOrAnalyzeFit(jobId, candidateId, {
-      id: candidateId,
-      current_role: parsedData.currentRole || "Not specified",
-      current_company: parsedData.currentCompany || "",
-      total_experience: parsedData.totalExperience || "Not specified",
-      location: parsedData.location || "Not specified",
-      technical_skills: parsedData.technicalSkills || [],
-      resume_text: parsedData.resumeText || "",
-      summary: parsedData.summary || "",
-    }, job).catch(() => {})
+    let fitScore: number | null = null
+    try {
+      const fitResult = await getOrAnalyzeFit(jobId, candidateId, {
+        id: candidateId,
+        current_role: parsedData.currentRole || "Not specified",
+        current_company: parsedData.currentCompany || "",
+        total_experience: parsedData.totalExperience || "Not specified",
+        location: parsedData.location || "Not specified",
+        technical_skills: parsedData.technicalSkills || [],
+        resume_text: parsedData.resumeText || "",
+        summary: parsedData.summary || "",
+      }, job)
+      fitScore = fitResult.fit_score
+    } catch (err: any) {
+      console.error("Fit analysis failed for candidate", candidateId, err?.message || err)
+    }
 
     return NextResponse.json({
       success: true,
       candidateId,
       applicationId: application?.id,
+      fitScore,
       message: duplicate
         ? `Resume matched existing candidate and assigned to ${job.title}`
         : `Resume uploaded and assigned to ${job.title}`,

@@ -4,9 +4,12 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import { supabaseAdmin } from "@/lib/supabase"
+import crypto from "crypto"
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "")
 const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash"
+
+const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000
 
 export interface FitResult {
   fit_score: number
@@ -121,6 +124,11 @@ Guidance:
   }
 }
 
+function advisoryLockKey(jobId: string, candidateId: string): number {
+  const hash = crypto.createHash("md5").update(`${jobId}:${candidateId}`).digest("hex")
+  return parseInt(hash.slice(0, 8), 16) | 0
+}
+
 export async function getOrAnalyzeFit(
   jobId: string,
   candidateId: string,
@@ -129,33 +137,69 @@ export async function getOrAnalyzeFit(
 ): Promise<FitResult> {
   const { data: cached } = await supabaseAdmin
     .from("candidate_job_fit")
-    .select("fit_score, fit_json, summary")
+    .select("fit_score, fit_json, summary, analyzed_at")
     .eq("job_id", jobId)
     .eq("candidate_id", candidateId)
     .maybeSingle()
 
   if (cached?.fit_json) {
-    const parsed = cached.fit_json as FitResult
-    return {
-      fit_score: cached.fit_score ?? parsed.fit_score,
-      pros: parsed.pros || [],
-      misses: parsed.misses || [],
-      interview_probes: parsed.interview_probes || [],
-      summary: cached.summary || parsed.summary || "",
+    const analyzedAt = cached.analyzed_at ? new Date(cached.analyzed_at).getTime() : 0
+    const isFresh = Date.now() - analyzedAt < TWENTY_FOUR_HOURS
+
+    if (isFresh) {
+      const parsed = cached.fit_json as FitResult
+      return {
+        fit_score: cached.fit_score ?? parsed.fit_score,
+        pros: parsed.pros || [],
+        misses: parsed.misses || [],
+        interview_probes: parsed.interview_probes || [],
+        summary: cached.summary || parsed.summary || "",
+      }
     }
   }
 
-  const fit = await analyzeFit(candidate, job)
-  await supabaseAdmin.from("candidate_job_fit").upsert(
-    {
-      job_id: jobId,
-      candidate_id: candidateId,
-      fit_score: fit.fit_score,
-      fit_json: fit,
-      summary: fit.summary,
-      analyzed_at: new Date().toISOString(),
-    },
-    { onConflict: "job_id,candidate_id" }
-  )
-  return fit
+  const lockKey = advisoryLockKey(jobId, candidateId)
+
+  try {
+    await supabaseAdmin.rpc("pg_advisory_lock", { lock_key: lockKey })
+
+    const { data: recheck } = await supabaseAdmin
+      .from("candidate_job_fit")
+      .select("fit_score, fit_json, summary, analyzed_at")
+      .eq("job_id", jobId)
+      .eq("candidate_id", candidateId)
+      .maybeSingle()
+
+    if (recheck?.fit_json) {
+      const analyzedAt = recheck.analyzed_at ? new Date(recheck.analyzed_at).getTime() : 0
+      if (Date.now() - analyzedAt < TWENTY_FOUR_HOURS) {
+        const parsed = recheck.fit_json as FitResult
+        return {
+          fit_score: recheck.fit_score ?? parsed.fit_score,
+          pros: parsed.pros || [],
+          misses: parsed.misses || [],
+          interview_probes: parsed.interview_probes || [],
+          summary: recheck.summary || parsed.summary || "",
+        }
+      }
+    }
+
+    const fit = await analyzeFit(candidate, job)
+
+    await supabaseAdmin.from("candidate_job_fit").upsert(
+      {
+        job_id: jobId,
+        candidate_id: candidateId,
+        fit_score: fit.fit_score,
+        fit_json: fit,
+        summary: fit.summary,
+        analyzed_at: new Date().toISOString(),
+      },
+      { onConflict: "job_id,candidate_id" }
+    )
+
+    return fit
+  } finally {
+    await supabaseAdmin.rpc("pg_advisory_unlock", { lock_key: lockKey })
+  }
 }

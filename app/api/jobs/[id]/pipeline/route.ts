@@ -72,11 +72,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
+    const missingFitIds = applications
+      .map(a => a.candidate_id)
+      .filter(id => !(id in fitScores))
+
+    if (missingFitIds.length > 0) {
+      const origin = request.nextUrl.origin
+      fetch(`${origin}/api/jobs/${jobId}/fit/auto`, { method: "POST" }).catch(() => {})
+    }
+
     return NextResponse.json({
       applications,
       participants,
       fitScores,
       clientDecisions,
+      missingFitCount: missingFitIds.length,
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 })
