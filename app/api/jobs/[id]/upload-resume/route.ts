@@ -19,7 +19,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { data: job } = await supabaseAdmin
     .from("jobs")
-    .select("id,title,client_name,industry,city,location,experience_min,experience_max,skills_must_have,skills_good_to_have,description")
+    .select("id,title,client_name,industry,city,location,experience_min_years,experience_max_years,skills_must_have,skills_good_to_have,description")
     .eq("id", jobId)
     .single()
 
