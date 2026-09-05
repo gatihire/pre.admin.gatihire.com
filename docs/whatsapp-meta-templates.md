@@ -345,7 +345,7 @@ Example: "8 LPA, 12 LPA, 30 days"
 
 ***
 
-### 10. Inbound Info Request (`inbound_info_request`)
+### 10. Inbound Info Request (`inbound_info_request`)pending name change 
 
 **Category:** UTILITY
 

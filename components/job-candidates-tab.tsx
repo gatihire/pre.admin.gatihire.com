@@ -604,7 +604,10 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
       return new Date(b.applied_at).getTime() - new Date(a.applied_at).getTime()
     })
 
-  const stageCount = (stageId: string) => applications.filter((a) => a.status === stageId).length
+  const stageCount = (stageId: string) => {
+    if (stageId === "ai_screen") return applications.filter((a) => !!callStatusByCandidate[a.candidate_id]).length
+    return applications.filter((a) => a.status === stageId).length
+  }
   const totalFilteredCount = filtered.length
   const interviewApps = activeStage === "interview" ? applications.filter((a) => a.status === "interview") : []
   const interviewAppCount = interviewApps.length
