@@ -247,6 +247,22 @@ export function CandidateProfileSidebar({
     if (!jobId || !c?.id || fitLoading) return
     setFitLoading(true)
     try {
+      const res = await fetch(`/api/jobs/${jobId}/fit?candidateIds=${c.id}`)
+      const data = await res.json()
+      if (data.fits?.[c.id]) {
+        setFitAnalysis(data.fits[c.id])
+      }
+    } catch {
+      toast({ title: "Failed to load analysis", variant: "destructive" })
+    } finally {
+      setFitLoading(false)
+    }
+  }
+
+  const reAnalyzeFit = async () => {
+    if (!jobId || !c?.id || fitLoading) return
+    setFitLoading(true)
+    try {
       const res = await fetch(`/api/jobs/${jobId}/fit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -546,7 +562,7 @@ export function CandidateProfileSidebar({
                     
                     {!fitAnalysis && !fitLoading && (
                       <button
-                        onClick={fetchFitAnalysis}
+                        onClick={reAnalyzeFit}
                         className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 transition-colors"
                       >
                         <BrainCircuit className="h-3.5 w-3.5" /> Analyze Against JD

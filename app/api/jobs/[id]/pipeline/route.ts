@@ -72,6 +72,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
+    applications.sort((a, b) => {
+      const scoreA = fitScores[a.candidate_id] ?? -1
+      const scoreB = fitScores[b.candidate_id] ?? -1
+      return scoreB - scoreA
+    })
+
     const missingFitIds = applications
       .map(a => a.candidate_id)
       .filter(id => !(id in fitScores))
