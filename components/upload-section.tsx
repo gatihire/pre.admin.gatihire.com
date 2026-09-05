@@ -67,7 +67,7 @@ interface UploadedFile {
   }
 }
 
-export function UploadSection() {
+export function UploadSection({ jobId }: { jobId?: string }) {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [selectedPreview, setSelectedPreview] = useState<any>(null)
@@ -128,6 +128,7 @@ export function UploadSection() {
 
       const formData = new FormData()
       formData.append("resume", file)
+      if (jobId) formData.append("jobId", jobId)
 
       logger.info(`Uploading file: ${file.name}, size: ${file.size}, type: ${file.type}`)
 

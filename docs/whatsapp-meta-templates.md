@@ -2,7 +2,7 @@
 
 > All WhatsApp message templates for GatiHire, configured directly via Meta WhatsApp Business API.
 
----
+***
 
 ## Table of Contents
 
@@ -13,63 +13,66 @@
 5. [Environment Variables](#environment-variables)
 6. [Pipeline Statuses](#pipeline-statuses)
 
----
+***
 
 ## Template Inventory
 
 ### Flow 1: Quick Screening (Existing)
 
-| # | Template Name | Category | When Sent |
-|---|---|---|---|
-| 1 | `talent_outreach` | MARKETING | Outbound initial |
-| 2 | `inbound_screening_invite` | UTILITY | Inbound initial |
-| 3 | `screening_invite` | UTILITY | After "Interested" |
-| 4 | `schedule_options` | UTILITY | Schedule call |
-| 5 | `call_nudge` | UTILITY | Pre-call notification |
-| 6 | `tried_calling` | UTILITY | After call fails |
-| 7 | `missed_call_reschedule` | UTILITY | Reschedule options |
-| 8 | `reminder_nudge` | UTILITY | 4h silence follow-up |
+| # | Template Name              | Category  | When Sent             |
+| - | -------------------------- | --------- | --------------------- |
+| 1 | `talent_outreach`          | MARKETING | Outbound initial      |
+| 2 | `inbound_screening_invite` | UTILITY   | Inbound initial       |
+| 3 | `screening_invite`         | UTILITY   | After "Interested"    |
+| 4 | `schedule_options`         | UTILITY   | Schedule call         |
+| 5 | `call_nudge`               | UTILITY   | Pre-call notification |
+| 6 | `tried_calling`            | UTILITY   | After call fails      |
+| 7 | `missed_call_reschedule`   | UTILITY   | Reschedule options    |
+| 8 | `reminder_nudge`           | UTILITY   | 4h silence follow-up  |
 
 ### Flow 2: Info Collection + Screening (New)
 
-| # | Template Name | Category | When Sent |
-|---|---|---|---|
-| 9 | `outbound_info_request` | MARKETING | Outbound — collect basic info |
-| 10 | `inbound_info_request` | UTILITY | Inbound — collect basic info |
-| 11 | `info_received_confirm` | UTILITY | Info received, schedule call |
-| 12 | `ai_call_reassurance` | UTILITY | Before call — friendly note |
+| #  | Template Name           | Category  | When Sent                     |
+| -- | ----------------------- | --------- | ----------------------------- |
+| 9  | `outbound_info_request` | MARKETING | Outbound — collect basic info |
+| 10 | `inbound_info_request`  | UTILITY   | Inbound — collect basic info  |
+| 11 | `info_received_confirm` | UTILITY   | Info received, schedule call  |
+| 12 | `ai_call_reassurance`   | UTILITY   | Before call — friendly note   |
 
 ### Flow 3: Rejection Reason + Extended Screening (New)
 
-| # | Template Name | Category | When Sent |
-|---|---|---|---|
-| 13 | `not_interested_reason` | UTILITY | Candidate says "Not interested" — capture reason via 6 buttons |
-| 14 | `detailed_info_request` | UTILITY | Extended screening — collect full details (CTC, experience, location, relocation, switching reason) |
-| 15 | `screening_filtered_out` | UTILITY | Candidate filtered out after pre-screen (e.g., comp mismatch) |
-| 16 | `second_reminder_nudge` | UTILITY | Second nudge when max_call_attempts > 2 |
-| 17 | `info_review_pending` | UTILITY | Candidate profile flagged for HR review — inform them we'll get back |
+| #  | Template Name            | Category | When Sent                                                                                           |
+| -- | ------------------------ | -------- | --------------------------------------------------------------------------------------------------- |
+| 13 | `not_interested_reason`  | UTILITY  | Candidate says "Not interested" — capture reason via 6 buttons                                      |
+| 14 | `detailed_info_request`  | UTILITY  | Extended screening — collect full details (CTC, experience, location, relocation, switching reason) |
+| 15 | `screening_filtered_out` | UTILITY  | Candidate filtered out after pre-screen (e.g., comp mismatch)                                       |
+| 16 | `second_reminder_nudge`  | UTILITY  | Second nudge when max\_call\_attempts > 2                                                           |
+| 17 | `info_review_pending`    | UTILITY  | Candidate profile flagged for HR review — inform them we'll get back                                |
 
----
+***
 
 ## Flow 1: Quick Screening (Existing)
 
 ### Outbound
+
 ```
 talent_outreach → [Interested] → screening_invite → Pick time → call_nudge → AI call
 ```
 
 ### Inbound
+
 ```
 inbound_screening_invite → Pick time → call_nudge → AI call
 ```
 
 **When to use:** HR wants to quickly reach out and schedule calls without collecting extra info.
 
----
+***
 
 ## Flow 2: Info Collection + Screening (Now uses detailed template)
 
 ### Outbound
+
 ```
 1. talent_outreach → [Interested]
 2. detailed_info_request → "Please share: CTC, Expected CTC, Experience, Notice Period, City, Relocate, Reason"
@@ -80,6 +83,7 @@ inbound_screening_invite → Pick time → call_nudge → AI call
 ```
 
 ### Inbound
+
 ```
 1. inbound_screening_invite → [Interested]
 2. detailed_info_request → "Please share: CTC, Expected CTC, Experience, Notice Period, City, Relocate, Reason"
@@ -93,11 +97,12 @@ inbound_screening_invite → Pick time → call_nudge → AI call
 
 > **Note:** Templates 9 (`outbound_info_request`) and 10 (`inbound_info_request`) are replaced by template 14 (`detailed_info_request`) for all info collection flows.
 
----
+***
 
 ## Flow 3: Rejection Reason + Extended Screening (New)
 
 ### Rejection Reason Flow
+
 ```
 1. Candidate clicks [Not Interested]
 2. not_interested_reason → 6 buttons: Not Looking / Comp Mismatch / Location / Already Placed / Role Not Relevant / Other
@@ -105,6 +110,7 @@ inbound_screening_invite → Pick time → call_nudge → AI call
 ```
 
 ### Extended Screening Flow (Now standard for all info collection)
+
 ```
 1. Admin selects "Collect Info First" or "Extended Screening" mode
 2. detailed_info_request → "Please share: CTC, Expected CTC, Experience, Notice Period, Current City, Willing to Relocate (yes/no), Reason for Switching"
@@ -122,17 +128,18 @@ inbound_screening_invite → Pick time → call_nudge → AI call
 
 **When to use:** Default for all info collection flows. Collects all details upfront, pre-screen automatically, only spend AI call budget on qualified candidates.
 
----
+***
 
 ## Template Details
 
-### 1. Talent Outreach (`talent_outreach`)
+### 1. Talent Outreach (`talent_outreach`)pending name change 
 
 **Category:** MARKETING
 
 **Purpose:** HR reaches out to candidates — we already have their resume
 
 **Body:**
+
 ```
 Hi {{1}},
 
@@ -147,11 +154,11 @@ If this sounds interesting, let us know and we can schedule a quick screening ca
 Would you like to know more?
 ```
 
-**Variables:** candidate_name, job_title, company_name, location, salary
+**Variables:** candidate\_name, job\_title, company\_name, location, salary
 
 **Buttons:** `[Interested]` `[Not Interested]`
 
----
+***
 
 ### 2. Inbound Screening Invite (`inbound_screening_invite`)
 
@@ -160,6 +167,7 @@ Would you like to know more?
 **Purpose:** Candidate applied via board-app — invite for screening
 
 **Body:**
+
 ```
 Hi {{1}},
 
@@ -170,19 +178,20 @@ We would like to schedule a brief screening call to discuss your experience and 
 When would be a good time for you?
 ```
 
-**Variables:** candidate_name, job_title, company_name
+**Variables:** candidate\_name, job\_title, company\_name
 
 **Buttons:** `[Call Now]` `[In 10 min]` `[In 30 min]` `[Today Evening]` `[Custom Time]`
 
----
+***
 
-### 3. Screening Invite (`screening_invite`)
+### 3. Screening Invite (`screening_invite`) pending name change 
 
 **Category:** UTILITY
 
 **Purpose:** After outbound candidate says "Interested"
 
 **Body:**
+
 ```
 Great, {{1}}!
 
@@ -191,11 +200,11 @@ Let us schedule your screening call for the {{2}} position at {{3}}.
 Please select a convenient time below.
 ```
 
-**Variables:** candidate_name, job_title, company_name
+**Variables:** candidate\_name, job\_title, company\_name
 
 **Buttons:** `[Call Now]` `[In 10 min]` `[In 30 min]` `[Today Evening]` `[Custom Time]`
 
----
+***
 
 ### 4. Schedule Options (`schedule_options`)
 
@@ -204,6 +213,7 @@ Please select a convenient time below.
 **Purpose:** After inbound candidate picks time
 
 **Body:**
+
 ```
 Great, {{1}}!
 
@@ -212,11 +222,11 @@ Let us schedule your screening call for the {{2}} position.
 Please select a convenient time below.
 ```
 
-**Variables:** candidate_name, job_title
+**Variables:** candidate\_name, job\_title
 
 **Buttons:** `[Call Now]` `[In 10 min]` `[In 30 min]` `[Today Evening]`
 
----
+***
 
 ### 5. Call Nudge (`call_nudge`)
 
@@ -225,6 +235,7 @@ Please select a convenient time below.
 **Purpose:** Pre-call notification
 
 **Body:**
+
 ```
 Hi {{1}},
 
@@ -233,11 +244,11 @@ This is a reminder that our team will call you shortly for your screening regard
 The call will last approximately 5-10 minutes. Please answer when we call.
 ```
 
-**Variables:** candidate_name, job_title, company_name
+**Variables:** candidate\_name, job\_title, company\_name
 
 **Buttons:** None (informational only)
 
----
+***
 
 ### 6. Tried Calling (`tried_calling`)
 
@@ -246,6 +257,7 @@ The call will last approximately 5-10 minutes. Please answer when we call.
 **Purpose:** After call fails — retry notification
 
 **Body:**
+
 ```
 Hi {{1}},
 
@@ -254,11 +266,11 @@ We attempted to call you regarding the {{2}} position at {{3}}, but were unable 
 Please select a convenient time for us to try again, or reply with your preferred time.
 ```
 
-**Variables:** candidate_name, job_title, company_name
+**Variables:** candidate\_name, job\_title, company\_name
 
 **Buttons:** `[Call Now]` `[In 10 min]` `[In 1 hour]`
 
----
+***
 
 ### 7. Missed Call Reschedule (`missed_call_reschedule`)
 
@@ -267,6 +279,7 @@ Please select a convenient time for us to try again, or reply with your preferre
 **Purpose:** Reschedule after missed call
 
 **Body:**
+
 ```
 Hi {{1}},
 
@@ -275,11 +288,11 @@ We missed you for the {{2}} screening at {{3}}.
 Please select a convenient time to reschedule, or reply with your preferred time.
 ```
 
-**Variables:** candidate_name, job_title, company_name
+**Variables:** candidate\_name, job\_title, company\_name
 
 **Buttons:** `[Call Now]` `[In 10 min]` `[In 1 hour]` `[Tomorrow Morning]`
 
----
+***
 
 ### 8. Reminder Nudge (`reminder_nudge`)
 
@@ -288,6 +301,7 @@ Please select a convenient time to reschedule, or reply with your preferred time
 **Purpose:** 4h silence follow-up
 
 **Body:**
+
 ```
 Hi {{1}},
 
@@ -296,11 +310,11 @@ Following up regarding the {{2}} position at {{3}}.
 If you are interested, please reply here or select an option below.
 ```
 
-**Variables:** candidate_name, job_title, company_name
+**Variables:** candidate\_name, job\_title, company\_name
 
 **Buttons:** `[Interested]` `[Not Interested]`
 
----
+***
 
 ### 9. Outbound Info Request (`outbound_info_request`)
 
@@ -309,6 +323,7 @@ If you are interested, please reply here or select an option below.
 **Purpose:** Collect basic info from outbound candidates before screening call
 
 **Body:**
+
 ```
 Hi {{1}},
 
@@ -324,11 +339,11 @@ Please reply with:
 Example: "8 LPA, 12 LPA, 30 days"
 ```
 
-**Variables:** candidate_name, job_title, company_name
+**Variables:** candidate\_name, job\_title, company\_name
 
 **Buttons:** `[Provide Details]` `[Skip — Schedule Call]`
 
----
+***
 
 ### 10. Inbound Info Request (`inbound_info_request`)
 
@@ -337,6 +352,7 @@ Example: "8 LPA, 12 LPA, 30 days"
 **Purpose:** Collect basic info from inbound candidates before screening call
 
 **Body:**
+
 ```
 Hi {{1}},
 
@@ -352,11 +368,11 @@ Please reply with:
 Example: "8 LPA, 12 LPA, 30 days"
 ```
 
-**Variables:** candidate_name, job_title, company_name
+**Variables:** candidate\_name, job\_title, company\_name
 
 **Buttons:** `[Provide Details]` `[Skip — Schedule Call]`
 
----
+***
 
 ### 11. Info Received Confirm (`info_received_confirm`)
 
@@ -365,6 +381,7 @@ Example: "8 LPA, 12 LPA, 30 days"
 **Purpose:** Confirm info received, ask for availability
 
 **Body:**
+
 ```
 Hi {{1}},
 
@@ -379,11 +396,11 @@ Now let us schedule your screening call. It is a quick 5-10 minute chat about yo
 When would be a good time?
 ```
 
-**Variables:** candidate_name, current_ctc, expected_ctc, notice_period
+**Variables:** candidate\_name, current\_ctc, expected\_ctc, notice\_period
 
 **Buttons:** `[Call Now]` `[In 10 min]` `[In 30 min]` `[Today Evening]`
 
----
+***
 
 ### 12. AI Call Reassurance (`ai_call_reassurance`)
 
@@ -392,6 +409,7 @@ When would be a good time?
 **Purpose:** Reassure candidate before screening call
 
 **Body:**
+
 ```
 Hi {{1}},
 
@@ -402,11 +420,11 @@ Quick note: Our team will ask you a few questions about your experience. It is c
 See you soon!
 ```
 
-**Variables:** candidate_name, job_title, company_name
+**Variables:** candidate\_name, job\_title, company\_name
 
 **Buttons:** None (informational only)
 
----
+***
 
 ### 13. Not Interested Reason (`not_interested_reason`)
 
@@ -415,6 +433,7 @@ See you soon!
 **Purpose:** Capture why candidate is not interested via 6 quick-reply buttons
 
 **Body:**
+
 ```
 Hi {{1}},
 
@@ -424,11 +443,13 @@ Pick one:
 ```
 
 **Variables:**
-| Position | Name | Example |
-|----------|------|---------|
-| `{{1}}` | `candidate_name` | "Rahul" |
+
+| Position | Name             | Example |
+| -------- | ---------------- | ------- |
+| `{{1}}`  | `candidate_name` | "Rahul" |
 
 **Buttons (6 quick-reply):**
+
 1. Not Looking to Switch (`reject_not_looking`)
 2. Compensation Mismatch (`reject_comp_mismatch`)
 3. Location Issue (`reject_location`)
@@ -438,7 +459,7 @@ Pick one:
 
 **Code:** `sendNotInterestedReason({ phoneNumber, candidateName })`
 
----
+***
 
 ### 14. Detailed Info Request (`detailed_info_request`)
 
@@ -447,6 +468,7 @@ Pick one:
 **Purpose:** Collect full screening details in ONE reply for pre-screening
 
 **Body:**
+
 ```
 Hi {{1}},
 
@@ -466,17 +488,18 @@ Example: "8 LPA, 12 LPA, 5 years, 30 days, Mumbai, yes, better growth"
 ```
 
 **Variables:**
-| Position | Name | Example |
-|----------|------|---------|
-| `{{1}}` | `candidate_name` | "Rahul" |
-| `{{2}}` | `job_title` | "Operations Manager" |
-| `{{3}}` | `company_name` | "SureShip" |
+
+| Position | Name             | Example              |
+| -------- | ---------------- | -------------------- |
+| `{{1}}`  | `candidate_name` | "Rahul"              |
+| `{{2}}`  | `job_title`      | "Operations Manager" |
+| `{{3}}`  | `company_name`   | "SureShip"           |
 
 **Buttons:** None (free-text reply)
 
 **Code:** `sendDetailedInfoRequest({ phoneNumber, candidateName, jobTitle, companyName })`
 
----
+***
 
 ### 15. Screening Filtered Out (`screening_filtered_out`)
 
@@ -485,6 +508,7 @@ Example: "8 LPA, 12 LPA, 5 years, 30 days, Mumbai, yes, better growth"
 **Purpose:** Inform candidate they didn't pass pre-screening
 
 **Body:**
+
 ```
 Hi {{1}},
 
@@ -496,24 +520,26 @@ We will keep your profile for future opportunities. All the best!
 ```
 
 **Variables:**
-| Position | Name | Example |
-|----------|------|---------|
-| `{{1}}` | `candidate_name` | "Rahul" |
-| `{{2}}` | `reason` | "Expected CTC above range" |
+
+| Position | Name             | Example                    |
+| -------- | ---------------- | -------------------------- |
+| `{{1}}`  | `candidate_name` | "Rahul"                    |
+| `{{2}}`  | `reason`         | "Expected CTC above range" |
 
 **Buttons:** None (informational only)
 
 **Code:** `sendScreeningFilteredOut({ phoneNumber, candidateName, reason })`
 
----
+***
 
 ### 16. Second Reminder Nudge (`second_reminder_nudge`)
 
 **Category:** UTILITY
 
-**Purpose:** Second nudge when max_call_attempts > 2
+**Purpose:** Second nudge when max\_call\_attempts > 2
 
 **Body:**
+
 ```
 Hi {{1}},
 
@@ -525,17 +551,18 @@ Looking forward to hearing from you!
 ```
 
 **Variables:**
-| Position | Name | Example |
-|----------|------|---------|
-| `{{1}}` | `candidate_name` | "Rahul" |
-| `{{2}}` | `job_title` | "Operations Manager" |
-| `{{3}}` | `company_name` | "SureShip" |
+
+| Position | Name             | Example              |
+| -------- | ---------------- | -------------------- |
+| `{{1}}`  | `candidate_name` | "Rahul"              |
+| `{{2}}`  | `job_title`      | "Operations Manager" |
+| `{{3}}`  | `company_name`   | "SureShip"           |
 
 **Buttons:** None (informational only)
 
 **Code:** `sendSecondReminderNudge({ phoneNumber, candidateName, jobTitle, companyName })`
 
----
+***
 
 ### 17. Info Review Pending (`info_review_pending`)
 
@@ -544,6 +571,7 @@ Looking forward to hearing from you!
 **Purpose:** Inform candidate their profile is under HR review after AI prescreen
 
 **Body:**
+
 ```
 Hi {{1}},
 
@@ -555,11 +583,12 @@ We appreciate your patience!
 ```
 
 **Variables:**
-| Position | Name | Example |
-|----------|------|---------|
-| `{{1}}` | `candidate_name` | "Rahul" |
-| `{{2}}` | `job_title` | "Operations Manager" |
-| `{{3}}` | `company_name` | "SureShip" |
+
+| Position | Name             | Example              |
+| -------- | ---------------- | -------------------- |
+| `{{1}}`  | `candidate_name` | "Rahul"              |
+| `{{2}}`  | `job_title`      | "Operations Manager" |
+| `{{3}}`  | `company_name`   | "SureShip"           |
 
 **Buttons:** None (informational only)
 
@@ -567,7 +596,7 @@ We appreciate your patience!
 
 **When sent:** After AI prescreen evaluates a candidate's info reply and decides `needs_review` (e.g., location mismatch, long notice period, borderline salary). The candidate is told we'll review and get back — HR then decides in the dashboard.
 
----
+***
 
 ## Environment Variables
 
@@ -596,21 +625,24 @@ WHATSAPP_TEMPLATE_SECOND_REMINDER="second_reminder_nudge"
 WHATSAPP_TEMPLATE_INFO_REVIEW_PENDING="info_review_pending"
 ```
 
----
+***
 
 ## Pipeline Statuses
 
 ### Flow 1: Quick Screening
+
 ```
 applied → whatsapp_sent → interested → call_scheduled → calling → call_done
 ```
 
 ### Flow 2: Info Collection + Screening
+
 ```
 applied → info_requested → info_received → call_scheduled → calling → call_done
 ```
 
 ### Flow 3: Extended Screening
+
 ```
 applied → info_requested → [pre-screen] → info_received → call_scheduled → calling → call_done
                            → needs_review → [HR approves] → info_received → call_scheduled → call_done
@@ -618,24 +650,26 @@ applied → info_requested → [pre-screen] → info_received → call_scheduled
 ```
 
 ### Rejection Reasons (captured on participants)
+
 ```
 not_looking_to_switch | comp_mismatch | location_mismatch | already_placed | role_not_relevant | other
 ```
 
 ### Sub-Sections in AI Screen Tab
-| Sub-Section | Status | What HR Sees |
-|-------------|--------|--------------|
-| `pending` | `applied` | Not yet contacted |
-| `info_requested` | `info_requested` | Waiting for candidate info |
-| `info_received` | `info_received` | Info received, ready to schedule |
-| `whatsapp_sent` | `whatsapp_sent` | Message sent, waiting |
-| `replied` | `interested` | Interested, ready to call |
-| `calling` | `calling` | AI call in progress |
-| `call_done` | `completed` | Screening complete |
-| `no_answer` | `failed` | No answer |
-| `retrying` | `retrying` | Auto-retry scheduled |
-| `unreachable` | `unreachable` | All retries exhausted |
 
----
+| Sub-Section      | Status           | What HR Sees                     |
+| ---------------- | ---------------- | -------------------------------- |
+| `pending`        | `applied`        | Not yet contacted                |
+| `info_requested` | `info_requested` | Waiting for candidate info       |
+| `info_received`  | `info_received`  | Info received, ready to schedule |
+| `whatsapp_sent`  | `whatsapp_sent`  | Message sent, waiting            |
+| `replied`        | `interested`     | Interested, ready to call        |
+| `calling`        | `calling`        | AI call in progress              |
+| `call_done`      | `completed`      | Screening complete               |
+| `no_answer`      | `failed`         | No answer                        |
+| `retrying`       | `retrying`       | Auto-retry scheduled             |
+| `unreachable`    | `unreachable`    | All retries exhausted            |
+
+***
 
 *Last updated: 2026-09-04*

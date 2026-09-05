@@ -381,6 +381,36 @@ async function handleCompletedExecution(
   enrichTranscriptAsync(participantId, transcript, effectiveVerdict).catch((err: any) => {
     logger.error("Async transcript enrichment failed", { participantId, error: err?.message })
   })
+
+  // Send post-call WhatsApp confirmation to candidate
+  sendPostCallWhatsApp(participantId).catch((err: any) => {
+    logger.error("Async post-call WhatsApp failed", { participantId, error: err?.message })
+  })
+}
+
+async function sendPostCallWhatsApp(participantId: string): Promise<void> {
+  const { data: participant } = await supabaseAdmin
+    .from("phone_screening_participants")
+    .select(`
+      candidate_id, job_id,
+      candidates: candidate_id (id, name, phone),
+      jobs: job_id (id, title, client_name)
+    `)
+    .eq("id", participantId)
+    .single()
+
+  if (!participant) return
+  const candidate = participant.candidates as any
+  const job = participant.jobs as any
+  if (!candidate?.phone) return
+
+  const whatsapp = getWhatsAppService()
+  await whatsapp.sendCallCompleted({
+    phoneNumber: candidate.phone,
+    candidateName: candidate.name || "",
+    jobTitle: job?.title || "",
+    companyName: job?.client_name || "",
+  })
 }
 
 async function enrichTranscriptAsync(

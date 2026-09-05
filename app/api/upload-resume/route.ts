@@ -6,6 +6,41 @@ import { SupabaseCandidateService } from "@/lib/supabase-candidates"
 import { ensureResumeBucketExists, supabaseAdmin } from "@/lib/supabase"
 import { checkFileExistsInSupabase } from "@/lib/supabase-storage-utils"
 import { getInternalAuthContext, hasPermission } from "@/lib/internal-auth"
+import { getOrAnalyzeFit } from "@/lib/candidate-fit"
+import { logger } from "@/lib/logger"
+
+// Helper: create application + trigger fit analysis (fire-and-forget)
+function linkCandidateToJob(jobId: string, candidateId: string) {
+  supabaseAdmin
+    .from("applications")
+    .upsert({ job_id: jobId, candidate_id: candidateId, status: "applied" }, { onConflict: "job_id,candidate_id" })
+    .then(async ({ error }) => {
+      if (error && error.code !== "23505") {
+        logger.warn("Failed to create application", { jobId, candidateId, error: error.message })
+        return
+      }
+      // Trigger fit analysis
+      try {
+        const { data: job } = await supabaseAdmin
+          .from("jobs")
+          .select("id,title,industry,client_name,city,location,experience_min_years,experience_max_years,skills_must_have,skills_good_to_have,description")
+          .eq("id", jobId)
+          .single()
+        if (job) {
+          const { data: candidate } = await supabaseAdmin
+            .from("candidates")
+            .select("id,name,current_role,current_company,total_experience,location,technical_skills,resume_text,summary")
+            .eq("id", candidateId)
+            .single()
+          if (candidate) {
+            await getOrAnalyzeFit(jobId, candidateId, candidate, job)
+          }
+        }
+      } catch (err: any) {
+        logger.warn("Fit analysis failed after upload", { jobId, candidateId, error: err.message })
+      }
+    })
+}
 
 export async function POST(request: NextRequest) {
   const ctx = await getInternalAuthContext(request)
@@ -40,6 +75,7 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
     const rawFile = formData.get("resume") as File
+    const jobId = formData.get("jobId") as string | null
 
     if (!rawFile) {
       console.error("No file provided in request")
@@ -491,6 +527,7 @@ export async function POST(request: NextRequest) {
         })
 
         console.log("=== Existing candidate updated successfully ===")
+        if (jobId) linkCandidateToJob(jobId, candidateId)
         return NextResponse.json({
           success: true,
           candidateId,
@@ -618,6 +655,8 @@ export async function POST(request: NextRequest) {
             })
             .eq('id', uploadLogId)
         }
+        // If jobId provided, create application + trigger fit analysis
+        if (jobId) linkCandidateToJob(jobId, insertedId)
         supabaseAdmin
           .from("analytics_events")
           .insert({
@@ -723,6 +762,7 @@ export async function POST(request: NextRequest) {
                 .eq('id', uploadLogId)
             }
 
+            if (jobId) linkCandidateToJob(jobId, existingId)
             return NextResponse.json({
               success: true,
               candidateId: existingId,
@@ -870,6 +910,7 @@ export async function POST(request: NextRequest) {
             })
             .eq('id', uploadLogId)
         }
+        if (jobId) linkCandidateToJob(jobId, duplicate.id)
         return NextResponse.json({
           success: true,
           candidateId: duplicate.id,
@@ -1074,6 +1115,7 @@ export async function POST(request: NextRequest) {
                 .eq('id', uploadLogId)
             }
 
+            if (jobId) linkCandidateToJob(jobId, existingId)
             return NextResponse.json({
               success: true,
               candidateId: existingId,
@@ -1103,6 +1145,7 @@ export async function POST(request: NextRequest) {
         throw new Error("Failed to create candidate")
       }
 
+      if (jobId) linkCandidateToJob(jobId, insertedCandidateId)
       return NextResponse.json({
         success: true,
         candidateId: insertedCandidateId,

@@ -626,6 +626,30 @@ export class WhatsAppService {
       ]
     })
   }
+
+  async sendCallCompleted(params: {
+    phoneNumber: string
+    candidateName: string
+    jobTitle: string
+    companyName: string
+  }): Promise<SendMessageResult> {
+    const templateName = process.env.WHATSAPP_TEMPLATE_CALL_COMPLETED || "call_completed"
+    
+    return this.sendTemplateMessage({
+      to: params.phoneNumber,
+      templateName,
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.candidateName },
+            { type: "text", text: params.jobTitle },
+            { type: "text", text: params.companyName }
+          ]
+        }
+      ]
+    })
+  }
 }
 
 // Singleton instance

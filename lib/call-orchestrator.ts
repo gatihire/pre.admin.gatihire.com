@@ -8,7 +8,7 @@ import { supabaseAdmin } from "@/lib/supabase"
 import { placeBolnaCall } from "@/lib/bolna"
 import { getWhatsAppService } from "@/lib/whatsapp"
 import { generateJDQuestions } from "@/lib/jd-questions"
-import { scheduleOutreachFollowup, outreachNudgeHours, outreachEscalateHours } from "@/lib/scheduled-call"
+import { scheduleOutreachFollowup, scheduleBolnaCall, outreachNudgeHours, outreachEscalateHours } from "@/lib/scheduled-call"
 import { getBoardAppBaseUrl } from "@/lib/utils"
 import { type CandidateOrigin } from "@/lib/origin"
 import { logger } from "@/lib/logger"
@@ -383,6 +383,12 @@ export async function orchestrateScreening(input: OrchestrateScreeningInput): Pr
           .eq("campaign_id", campaign.id)
           .eq("candidate_id", candidate.id)
         nudgeSent++
+
+        // Schedule follow-up nudge/escalate (same as whatsapp_first)
+        if (participantId) {
+          await scheduleOutreachFollowup(participantId, "nudge", nudgeH * 60 * 60)
+          await scheduleOutreachFollowup(participantId, "escalate", escalateH * 60 * 60)
+        }
       } else {
         await supabaseAdmin
           .from("phone_screening_participants")
@@ -557,6 +563,7 @@ export async function orchestrateScreening(input: OrchestrateScreeningInput): Pr
       triggered++
     } else {
       // Store call_payload_json even on failure so retries via QStash have full context
+      const retryMinutes = 15
       await supabaseAdmin
         .from("phone_screening_participants")
         .update({
@@ -564,6 +571,7 @@ export async function orchestrateScreening(input: OrchestrateScreeningInput): Pr
           call_payload_json: userData,
           generated_questions: generatedQuestions.join("\n"),
           gemini_prompt_used: geminiPromptUsed,
+          next_retry_at: new Date(Date.now() + retryMinutes * 60 * 1000).toISOString(),
           screening_context: {
             jobTitle: job.title,
             clientName: job.client_name || client?.name || "",
@@ -577,6 +585,15 @@ export async function orchestrateScreening(input: OrchestrateScreeningInput): Pr
         })
         .eq("campaign_id", campaign.id)
         .eq("candidate_id", candidate.id)
+
+      // Schedule retry via QStash
+      if (participantId) {
+        const scheduled = await scheduleBolnaCall(participantId, retryMinutes * 60)
+        if (!scheduled.scheduled) {
+          logger.warn("Failed to schedule retry for call_now failure", { participantId, error: scheduled.error })
+        }
+      }
+
       failed++
       errors.push(`${candidate.name}: ${result.error}`)
     }

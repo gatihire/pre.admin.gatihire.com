@@ -24,12 +24,16 @@ import { RootCauseAnalytics } from "./root-cause-analytics"
 import {
   Loader2, User, MapPin, Briefcase, Eye, Sparkles, Mail, Phone, ChevronDown, ChevronUp,
   PhoneCall, PhoneOff, CheckCircle, CheckCheck, Check, Clock, UserX, Play, Save, Filter, MessageCircle, Send,
-  AlertCircle, RefreshCw, BrainCircuit, ShieldCheck,
+  AlertCircle, RefreshCw, BrainCircuit, ShieldCheck, Upload,
 } from "lucide-react"
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription,
   AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
 } from "@/components/ui/alert-dialog"
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from "@/components/ui/dialog"
+import { UploadSection } from "./upload-section"
 import { formatDistanceToNow } from "date-fns"
 import { invalidateSessionCache } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
@@ -403,6 +407,7 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
   const [bulkBusy, setBulkBusy] = useState(false)
   const [bulkNudgeMode, setBulkNudgeMode] = useState<"call_now" | "whatsapp_first" | "info_first" | "extended_screening">("whatsapp_first")
   const [resultParticipantId, setResultParticipantId] = useState<string | null>(null)
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
 
   // Prescreen review state
   const [reviewCandidate, setReviewCandidate] = useState<ReviewCandidate | null>(null)
@@ -782,6 +787,17 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
               </button>
             )
           })}
+          <div className="ml-auto">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs gap-1"
+              onClick={() => setUploadDialogOpen(true)}
+            >
+              <Upload className="h-3.5 w-3.5" />
+              Upload Resumes
+            </Button>
+          </div>
         </motion.div>
 
         {/* ── Source Filter Bar ── */}
@@ -1215,6 +1231,19 @@ export function CandidatesTab({ jobId, applications, loading, activeStage, activ
           onPrev={() => { const prev = reviewIndex - 1; if (prev >= 0) { setReviewIndex(prev); setReviewCandidate(reviewList[prev]) } }}
         />
       </div>
+
+      {/* ── Upload Resumes Dialog ── */}
+      <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Upload Resumes for this Job</DialogTitle>
+            <DialogDescription>
+              Resumes will be parsed, linked to this job, and automatically scored against the job description.
+            </DialogDescription>
+          </DialogHeader>
+          <UploadSection jobId={jobId} />
+        </DialogContent>
+      </Dialog>
     </TooltipProvider>
   )
 }
